@@ -1,0 +1,185 @@
+{
+  "project_name": "Studio Tardugno & Bonifacio Mobile App",
+  "platform": "React Native Expo (Android-first)",
+  "design_philosophy": {
+    "identity": "The Trustworthy Neighbor",
+    "core_principles": [
+      "Clarity over Style: Text must be legible for elderly users (16px+ body).",
+      "Touch-First: Minimum touch target 48x48px.",
+      "Professional Warmth: Corporate Navy meets Sky Blue; reliable but not cold.",
+      "Native Feel: Use platform-specific navigation patterns (Tabs, Stacks).",
+      "Italian Elegance: Clean lines, ample whitespace, high-contrast typography."
+    ],
+    "anti_patterns": [
+      "Small text (<14px) for interactive elements.",
+      "Low contrast grays.",
+      "Complex gestures (swipe actions must have button alternatives).",
+      "Hidden navigation (Hamburger menus are secondary; Tabs are primary)."
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "heading": "Manrope",
+      "body": "Inter"
+    },
+    "scale": {
+      "xs": 12,
+      "sm": 14,
+      "md": 16,
+      "lg": 18,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 30,
+      "4xl": 36
+    },
+    "weights": {
+      "regular": "400",
+      "medium": "500",
+      "semibold": "600",
+      "bold": "700"
+    },
+    "line_heights": {
+      "tight": 1.2,
+      "normal": 1.5,
+      "relaxed": 1.75
+    },
+    "usage": {
+      "h1": { "size": 30, "weight": "700", "color": "#1B3A5C", "lineHeight": 36 },
+      "h2": { "size": 24, "weight": "600", "color": "#1B3A5C", "lineHeight": 30 },
+      "h3": { "size": 20, "weight": "600", "color": "#1B3A5C", "lineHeight": 26 },
+      "body": { "size": 16, "weight": "400", "color": "#334155", "lineHeight": 24 },
+      "caption": { "size": 12, "weight": "500", "color": "#64748B", "lineHeight": 16 },
+      "button": { "size": 16, "weight": "600", "color": "#FFFFFF", "lineHeight": 20 }
+    }
+  },
+  "colors": {
+    "primary": {
+      "navy": "#1B3A5C",
+      "sky": "#5B9BD5",
+      "sky_light": "#E0F2FE"
+    },
+    "neutral": {
+      "white": "#FFFFFF",
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "border": "#E2E8F0",
+      "text_main": "#0F172A",
+      "text_secondary": "#475569",
+      "text_muted": "#94A3B8"
+    },
+    "semantic": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444",
+      "info": "#3B82F6"
+    },
+    "dashboard_tiles": [
+      { "bg": "#E0F2FE", "icon": "#0284C7" }, 
+      { "bg": "#DCFCE7", "icon": "#16A34A" }, 
+      { "bg": "#FEF3C7", "icon": "#D97706" }, 
+      { "bg": "#FEE2E2", "icon": "#DC2626" },
+      { "bg": "#F3E8FF", "icon": "#9333EA" },
+      { "bg": "#FFEDD5", "icon": "#EA580C" }
+    ]
+  },
+  "spacing": {
+    "grid_unit": 4,
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "2xl": 48,
+    "3xl": 64,
+    "safe_area_bottom": 34
+  },
+  "layout": {
+    "grid_system": {
+      "dashboard_cols": 2,
+      "gap": 16,
+      "container_padding": 16
+    },
+    "card": {
+      "borderRadius": 12,
+      "padding": 16,
+      "backgroundColor": "#FFFFFF",
+      "shadowColor": "#000",
+      "shadowOffset": { "width": 0, "height": 2 },
+      "shadowOpacity": 0.05,
+      "shadowRadius": 8,
+      "elevation": 3
+    },
+    "container": {
+      "flex": 1,
+      "backgroundColor": "#F8FAFC"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": {
+        "height": 56,
+        "borderRadius": 12,
+        "backgroundColor": "#1B3A5C",
+        "justifyContent": "center",
+        "alignItems": "center"
+      },
+      "secondary": {
+        "height": 56,
+        "borderRadius": 12,
+        "backgroundColor": "#E0F2FE",
+        "justifyContent": "center",
+        "alignItems": "center",
+        "borderWidth": 1,
+        "borderColor": "#5B9BD5"
+      },
+      "text_style": {
+        "color": "#FFFFFF",
+        "fontSize": 16,
+        "fontWeight": "600"
+      }
+    },
+    "inputs": {
+      "height": 56,
+      "borderRadius": 8,
+      "borderWidth": 1,
+      "borderColor": "#E2E8F0",
+      "backgroundColor": "#FFFFFF",
+      "paddingHorizontal": 16,
+      "fontSize": 16,
+      "color": "#0F172A"
+    }
+  },
+  "assets": {
+    "icons_library": "@expo/vector-icons (Ionicons or MaterialIcons)",
+    "images": {
+      "logo_placeholder": "https://images.unsplash.com/photo-1715199049797-8612f5d7cc64?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBidWlsZGluZyUyMGlsbHVzdHJhdGlvbiUyMGZsYXQlMjBkZXNpZ24lMjBibHVlJTIwdHJlZXN8ZW58MHx8fHwxNzczNDAyNjcwfDA&ixlib=rb-4.1.0&q=85",
+      "faults_maintenance": "https://images.unsplash.com/photo-1559678158-4bbf3a63ccf7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBidWlsZGluZyUyMGlsbHVzdHJhdGlvbiUyMGZsYXQlMjBkZXNpZ24lMjBibHVlJTIwdHJlZXN8ZW58MHx8fHwxNzczNDAyNjcwfDA&ixlib=rb-4.1.0&q=85",
+      "documents": "https://images.unsplash.com/photo-1771758249853-415175dc29b9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwyfHxzdGFjayUyMG9mJTIwYnVzaW5lc3MlMjBkb2N1bWVudHMlMjBjbGVhbnxlbnwwfHx8fDE3NzM0MDI2NzF8MA&ixlib=rb-4.1.0&q=85",
+      "appointments": "https://images.unsplash.com/photo-1636125657985-7384a5478f5a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBtZWV0aW5nJTIwcm9vbSUyMGdsYXNzJTIwd2FsbHN8ZW58MHx8fHwxNzczNDAyNjcyfDA&ixlib=rb-4.1.0&q=85",
+      "contacts_map": "https://images.unsplash.com/photo-1715527532135-80764537c278?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwxfHxTYWxlcm5vJTIwSXRhbHklMjBjaXR5JTIwc3RyZWV0JTIwbWFwfGVufDB8fHx8MTc3MzQwMjY3M3ww&ixlib=rb-4.1.0&q=85",
+      "team_about": "https://images.unsplash.com/photo-1758873271761-6cfe9b4f000c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHw0fHxjb3Jwb3JhdGUlMjBtZWV0aW5nJTIwZGl2ZXJzZSUyMHRlYW0lMjBwcm9mZXNzaW9uYWx8ZW58MHx8fHwxNzczNDAyNjk4fDA&ixlib=rb-4.1.0&q=85"
+    }
+  },
+  "universal_guidelines": {
+    "react_native": [
+      "Use `StyleSheet.create` for all styles; avoid inline styles where possible.",
+      "Use `SafeAreaView` from `react-native-safe-area-context` for all screen containers.",
+      "Wrap forms in `KeyboardAvoidingView` (behavior: padding/height based on platform).",
+      "Use `TouchableOpacity` or `Pressable` for all interactive elements.",
+      "Ensure `hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}` for small icons.",
+      "Use `FlatList` for all lists (performance); never `ScrollView` + `map`.",
+      "Platform.OS === 'android' ? 'elevation' : 'shadow...' for shadows."
+    ],
+    "accessibility": [
+      "All text must have `accessible={true}` (default).",
+      "Images must have `accessibilityLabel`.",
+      "Touchable elements must have `accessibilityRole` (button, link, etc.).",
+      "Minimum contrast ratio 4.5:1 for text."
+    ],
+    "testing": [
+      "All interactive elements MUST include `testID` prop (e.g., `testID='login-button'`).",
+      "Text elements containing dynamic data should have `testID`."
+    ]
+  },
+  "instructions_to_main_agent": "You are building a React Native Expo app. The file structure suggests Expo Router. Use 'app' directory for routing. Do not use Tailwind classes as 'nativewind' is not detected in package.json. Use standard React Native StyleSheet. Stick to the requested color palette (#1B3A5C, #5B9BD5). The design should be clean, large, and readable. Use the provided image URLs for placeholders."
+}
