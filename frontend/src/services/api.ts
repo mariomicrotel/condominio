@@ -67,6 +67,7 @@ export const api = {
   createTrasmissione: (token: string, data: any) => apiCall('/trasmissioni', { method: 'POST', token, body: data }),
   getTrasmissioni: (token: string) => apiCall('/trasmissioni', { token }),
   getAdminTrasmissioni: (token: string) => apiCall('/admin/trasmissioni', { token }),
+  updateAdminTrasmissione: (token: string, id: string, stato: string) => apiCall(`/admin/trasmissioni/${id}?stato=${encodeURIComponent(stato)}`, { method: 'PUT', token }),
 
   // Estratto Conto
   getEstrattoConto: (token: string) => apiCall('/estratto-conto', { token }),

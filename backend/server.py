@@ -605,8 +605,8 @@ async def get_config(user=Depends(get_admin_user)):
     config = await db.app_config.find_one({"key": "main"}, {"_id": 0})
     if not config:
         config = {"key": "main", "google_maps_api_key": "", "firebase_key": "", "studio_telefono": "+39 089 123456", "studio_email": "info@tardugnobonifacio.it", "studio_pec": ""}
-        await db.app_config.insert_one(config)
-    return {k: v for k, v in config.items() if k != "key"}
+        await db.app_config.insert_one({**config})
+    return {k: v for k, v in config.items() if k not in ("key", "_id")}
 
 @api_router.put("/admin/config")
 async def update_config(data: ConfigUpdate, user=Depends(get_admin_user)):

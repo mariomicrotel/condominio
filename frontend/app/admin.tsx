@@ -8,7 +8,7 @@ import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
 import { StatusBadge, PrimaryButton, PickerSelect } from '../src/components/SharedComponents';
 
-type Tab = 'dashboard' | 'condomini' | 'utenti' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'config';
+type Tab = 'dashboard' | 'condomini' | 'utenti' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'config';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Home', icon: 'grid' },
@@ -17,6 +17,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'segnalazioni', label: 'Guasti', icon: 'warning' },
   { key: 'appuntamenti', label: 'App.', icon: 'calendar' },
   { key: 'avvisi', label: 'Avvisi', icon: 'megaphone' },
+  { key: 'trasmissioni', label: 'Docs', icon: 'documents' },
   { key: 'config', label: 'Config', icon: 'cog' },
 ];
 
@@ -42,16 +43,25 @@ export default function Admin() {
   const [newAvviso, setNewAvviso] = useState({ titolo: '', testo: '', categoria: 'Avviso generico', condominio_id: '' });
   const [newCond, setNewCond] = useState({ nome: '', indirizzo: '', codice_fiscale: '', note: '' });
   const [assocForm, setAssocForm] = useState({ condominio_id: '', unita_immobiliare: '', qualita: 'Proprietario' });
+  // Config state
+  const [config, setConfig] = useState({ google_maps_api_key: '', firebase_key: '', studio_telefono: '', studio_email: '', studio_pec: '' });
+  const [configLoading, setConfigLoading] = useState(false);
+  // Trasmissioni state
+  const [trasmissioni, setTrasmissioni] = useState<any[]>([]);
+  // Estratti Conto
+  const [showECModal, setShowECModal] = useState<any>(null); // user for EC
+  const [ecForm, setEcForm] = useState({ condominio_id: '', periodo: '', quote_versate: '', quote_da_versare: '', scadenza: '', saldo: '', note: '' });
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, cond, seg, app, avv, ut] = await Promise.all([
+      const [s, cond, seg, app, avv, ut, trasm] = await Promise.all([
         api.getAdminDashboard(token!), api.getCondomini(token!),
         api.getAdminSegnalazioni(token!), api.getAdminAppuntamenti(token!),
         api.getAdminAvvisi(token!), api.getAdminUtenti(token!),
+        api.getAdminTrasmissioni(token!).catch(() => []),
       ]);
-      setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app); setAvvisi(avv); setUtenti(ut);
+      setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app); setAvvisi(avv); setUtenti(ut); setTrasmissioni(trasm);
     } catch {} finally { setLoading(false); }
   }, [token]);
 
@@ -139,6 +149,64 @@ export default function Admin() {
         } catch (e: any) { Alert.alert('Errore', e.message); }
       }},
     ]);
+  };
+
+  // === Config ===
+  const loadConfig = useCallback(async () => {
+    try {
+      const cfg = await api.getConfig(token!);
+      setConfig({
+        google_maps_api_key: cfg.google_maps_api_key || '',
+        firebase_key: cfg.firebase_key || '',
+        studio_telefono: cfg.studio_telefono || '',
+        studio_email: cfg.studio_email || '',
+        studio_pec: cfg.studio_pec || '',
+      });
+    } catch {}
+  }, [token]);
+
+  useEffect(() => { if (tab === 'config') loadConfig(); }, [tab, loadConfig]);
+
+  const saveConfig = async () => {
+    setConfigLoading(true);
+    try {
+      await api.updateConfig(token!, config);
+      Alert.alert('Salvato', 'Configurazione aggiornata con successo');
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+    finally { setConfigLoading(false); }
+  };
+
+  // === Trasmissioni ===
+  const updateTrasmStato = async (id: string, stato: string) => {
+    try {
+      await api.updateAdminTrasmissione(token!, id, stato);
+      setTrasmissioni(p => p.map(t => t.id === id ? { ...t, stato } : t));
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+  };
+
+  // === Estratto Conto ===
+  const saveEstrattoConto = async () => {
+    if (!ecForm.condominio_id) { Alert.alert('Attenzione', 'Seleziona un condominio'); return; }
+    try {
+      await api.upsertEstrattoConto(token!, {
+        user_id: showECModal.id,
+        condominio_id: ecForm.condominio_id,
+        periodo: ecForm.periodo,
+        quote_versate: parseFloat(ecForm.quote_versate) || 0,
+        quote_da_versare: parseFloat(ecForm.quote_da_versare) || 0,
+        scadenza: ecForm.scadenza,
+        saldo: parseFloat(ecForm.saldo) || 0,
+        note: ecForm.note,
+      });
+      setShowECModal(null);
+      Alert.alert('Salvato', 'Estratto conto aggiornato');
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+  };
+
+  // === Export CSV ===
+  const exportCSV = (type: string) => {
+    const url = api.getExportUrl(type);
+    Linking.openURL(url).catch(() => Alert.alert('Errore', 'Impossibile aprire il link'));
   };
 
   const handleLogout = () => {
@@ -319,6 +387,127 @@ export default function Admin() {
               )} />
           </View>
         )}
+
+        {/* ====== TRASMISSIONI ====== */}
+        {tab === 'trasmissioni' && (
+          <FlatList data={trasmissioni} keyExtractor={i => i.id} contentContainerStyle={s.content}
+            ListEmptyComponent={<Text style={s.emptyText}>Nessuna trasmissione ricevuta</Text>}
+            renderItem={({ item }) => (
+              <View style={s.listCard}>
+                <View style={s.listRow}>
+                  <Text style={s.listTitle}>{item.oggetto}</Text>
+                  <StatusBadge status={item.stato} />
+                </View>
+                <Text style={s.listSub}>{item.user_nome}</Text>
+                <Text style={s.listDate}>{new Date(item.created_at).toLocaleDateString('it-IT')} • File: {item.files?.length || 0}</Text>
+                {item.note ? <Text style={[s.listDate, { marginTop: 4 }]}>Note: {item.note}</Text> : null}
+                {item.stato === 'Inviato' && (
+                  <View style={{ flexDirection: 'row', marginTop: 8, gap: 8 }}>
+                    <TouchableOpacity style={[s.miniBtn, { backgroundColor: '#DCFCE7' }]} onPress={() => updateTrasmStato(item.id, 'Ricevuto')}>
+                      <Text style={[s.miniBtnText, { color: '#16A34A' }]}>Ricevuto</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.miniBtn, { backgroundColor: '#E0E7FF' }]} onPress={() => updateTrasmStato(item.id, 'Visionato')}>
+                      <Text style={[s.miniBtnText, { color: '#4F46E5' }]}>Visionato</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )} />
+        )}
+
+        {/* ====== CONFIG ====== */}
+        {tab === 'config' && (
+          <ScrollView contentContainerStyle={s.content}>
+            <Text style={s.secTitle}>Configurazioni</Text>
+            
+            {/* Contact Info */}
+            <View style={s.configSection}>
+              <View style={s.configSectionHeader}>
+                <Ionicons name="business-outline" size={20} color={Colors.navy} />
+                <Text style={s.configSectionTitle}>Informazioni Studio</Text>
+              </View>
+              <View style={s.configField}>
+                <Text style={s.configLabel}>Telefono</Text>
+                <TextInput testID="config-telefono" style={s.input} value={config.studio_telefono} onChangeText={v => setConfig(p => ({ ...p, studio_telefono: v }))} placeholder="+39 089 123456" placeholderTextColor={Colors.textMuted} />
+              </View>
+              <View style={s.configField}>
+                <Text style={s.configLabel}>Email</Text>
+                <TextInput testID="config-email" style={s.input} value={config.studio_email} onChangeText={v => setConfig(p => ({ ...p, studio_email: v }))} placeholder="info@studio.it" placeholderTextColor={Colors.textMuted} keyboardType="email-address" autoCapitalize="none" />
+              </View>
+              <View style={s.configField}>
+                <Text style={s.configLabel}>PEC</Text>
+                <TextInput testID="config-pec" style={s.input} value={config.studio_pec} onChangeText={v => setConfig(p => ({ ...p, studio_pec: v }))} placeholder="studio@pec.it" placeholderTextColor={Colors.textMuted} keyboardType="email-address" autoCapitalize="none" />
+              </View>
+            </View>
+
+            {/* API Keys */}
+            <View style={s.configSection}>
+              <View style={s.configSectionHeader}>
+                <Ionicons name="key-outline" size={20} color={Colors.navy} />
+                <Text style={s.configSectionTitle}>Chiavi API</Text>
+              </View>
+              <View style={s.configField}>
+                <Text style={s.configLabel}>Google Maps API Key</Text>
+                <TextInput testID="config-gmaps" style={s.input} value={config.google_maps_api_key} onChangeText={v => setConfig(p => ({ ...p, google_maps_api_key: v }))} placeholder="Inserisci la chiave API" placeholderTextColor={Colors.textMuted} autoCapitalize="none" />
+              </View>
+              <View style={s.configField}>
+                <Text style={s.configLabel}>Firebase Key</Text>
+                <TextInput testID="config-firebase" style={s.input} value={config.firebase_key} onChangeText={v => setConfig(p => ({ ...p, firebase_key: v }))} placeholder="Inserisci la chiave Firebase" placeholderTextColor={Colors.textMuted} autoCapitalize="none" />
+              </View>
+            </View>
+
+            <PrimaryButton title={configLoading ? "Salvataggio..." : "Salva Configurazione"} onPress={saveConfig} loading={configLoading} testID="config-save-btn" style={{ marginBottom: 16 }} />
+
+            {/* Export Section */}
+            <View style={s.configSection}>
+              <View style={s.configSectionHeader}>
+                <Ionicons name="download-outline" size={20} color={Colors.navy} />
+                <Text style={s.configSectionTitle}>Esporta Dati (CSV)</Text>
+              </View>
+              <View style={{ gap: 8 }}>
+                <TouchableOpacity testID="export-segnalazioni" style={s.exportBtn} onPress={() => exportCSV('segnalazioni')}>
+                  <Ionicons name="warning-outline" size={18} color={Colors.sky} />
+                  <Text style={s.exportBtnText}>Esporta Segnalazioni</Text>
+                </TouchableOpacity>
+                <TouchableOpacity testID="export-appuntamenti" style={s.exportBtn} onPress={() => exportCSV('appuntamenti')}>
+                  <Ionicons name="calendar-outline" size={18} color={Colors.sky} />
+                  <Text style={s.exportBtnText}>Esporta Appuntamenti</Text>
+                </TouchableOpacity>
+                <TouchableOpacity testID="export-utenti" style={s.exportBtn} onPress={() => exportCSV('utenti')}>
+                  <Ionicons name="people-outline" size={18} color={Colors.sky} />
+                  <Text style={s.exportBtnText}>Esporta Utenti</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Gestione Estratti Conto */}
+            <View style={s.configSection}>
+              <View style={s.configSectionHeader}>
+                <Ionicons name="cash-outline" size={20} color={Colors.navy} />
+                <Text style={s.configSectionTitle}>Gestione Estratti Conto</Text>
+              </View>
+              <Text style={{ fontSize: 13, color: Colors.textSec, marginBottom: 12 }}>Seleziona un utente per inserire o aggiornare l'estratto conto.</Text>
+              {utenti.filter(u => u.abilitato).map(u => (
+                <TouchableOpacity key={u.id} testID={`ec-user-${u.id}`} style={s.ecUserBtn} onPress={() => {
+                  setShowECModal(u);
+                  const cond = u.associazioni?.[0];
+                  setEcForm({ condominio_id: cond?.condominio_id || '', periodo: '', quote_versate: '', quote_da_versare: '', scadenza: '', saldo: '', note: '' });
+                }}>
+                  <Ionicons name="person-circle-outline" size={22} color={Colors.sky} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textMain }}>{u.nome} {u.cognome}</Text>
+                    <Text style={{ fontSize: 12, color: Colors.textMuted }}>{u.condomini_nomi?.join(', ') || 'N/A'}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                </TouchableOpacity>
+              ))}
+              {utenti.filter(u => u.abilitato).length === 0 && (
+                <Text style={s.emptyText}>Nessun utente abilitato</Text>
+              )}
+            </View>
+            <View style={{ height: 32 }} />
+          </ScrollView>
+        )}
       </View>
 
       {/* Bottom Tabs */}
@@ -420,6 +609,51 @@ export default function Admin() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* ====== MODAL: Estratto Conto ====== */}
+      <Modal visible={!!showECModal} transparent animationType="slide" onRequestClose={() => setShowECModal(null)}>
+        <View style={s.modalOverlay}>
+          <ScrollView style={s.modal} keyboardShouldPersistTaps="handled">
+            <Text style={s.modalTitle}>Estratto Conto</Text>
+            <Text style={s.modalSub}>{showECModal?.nome} {showECModal?.cognome}</Text>
+            
+            {showECModal?.associazioni?.length > 0 && (
+              <PickerSelect label="Condominio *" value={condomini.find(c => c.id === ecForm.condominio_id)?.nome || ''}
+                options={showECModal.associazioni.map((a: any) => a.condominio_nome)}
+                onSelect={v => { const a = showECModal.associazioni.find((a: any) => a.condominio_nome === v); if (a) setEcForm(p => ({ ...p, condominio_id: a.condominio_id })); }}
+                testID="ec-cond-picker" />
+            )}
+
+            <View style={s.configField}>
+              <Text style={s.configLabel}>Periodo</Text>
+              <TextInput testID="ec-periodo" style={s.input} value={ecForm.periodo} onChangeText={v => setEcForm(p => ({ ...p, periodo: v }))} placeholder="Es: Gennaio - Giugno 2026" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <View style={s.configField}>
+              <Text style={s.configLabel}>Quote Versate (€)</Text>
+              <TextInput testID="ec-versate" style={s.input} value={ecForm.quote_versate} onChangeText={v => setEcForm(p => ({ ...p, quote_versate: v }))} placeholder="0.00" keyboardType="decimal-pad" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <View style={s.configField}>
+              <Text style={s.configLabel}>Quote da Versare (€)</Text>
+              <TextInput testID="ec-da-versare" style={s.input} value={ecForm.quote_da_versare} onChangeText={v => setEcForm(p => ({ ...p, quote_da_versare: v }))} placeholder="0.00" keyboardType="decimal-pad" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <View style={s.configField}>
+              <Text style={s.configLabel}>Saldo (€)</Text>
+              <TextInput testID="ec-saldo" style={s.input} value={ecForm.saldo} onChangeText={v => setEcForm(p => ({ ...p, saldo: v }))} placeholder="0.00" keyboardType="decimal-pad" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <View style={s.configField}>
+              <Text style={s.configLabel}>Scadenza</Text>
+              <TextInput testID="ec-scadenza" style={s.input} value={ecForm.scadenza} onChangeText={v => setEcForm(p => ({ ...p, scadenza: v }))} placeholder="Es: 30/06/2026" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <View style={s.configField}>
+              <Text style={s.configLabel}>Note</Text>
+              <TextInput testID="ec-note" style={[s.input, { height: 80, textAlignVertical: 'top' }]} value={ecForm.note} onChangeText={v => setEcForm(p => ({ ...p, note: v }))} placeholder="Note aggiuntive..." multiline placeholderTextColor={Colors.textMuted} />
+            </View>
+
+            <PrimaryButton title="Salva Estratto Conto" onPress={saveEstrattoConto} testID="ec-save-btn" />
+            <TouchableOpacity style={s.closeBtn} onPress={() => setShowECModal(null)}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -473,4 +707,15 @@ const s = StyleSheet.create({
   input: { height: 52, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 16, fontSize: 16, color: Colors.textMain, marginBottom: 12, backgroundColor: Colors.bg },
   inputGroup: { marginBottom: 4 },
   inputLabel: { fontSize: 14, fontWeight: '500', color: Colors.textSec, marginBottom: 6 },
+  // Config styles
+  configSection: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },
+  configSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  configSectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.navy, marginLeft: 8 },
+  configField: { marginBottom: 8 },
+  configLabel: { fontSize: 13, fontWeight: '500', color: Colors.textSec, marginBottom: 4 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.skyLight, borderRadius: 10, padding: 14 },
+  exportBtnText: { fontSize: 14, fontWeight: '600', color: Colors.navy, marginLeft: 10 },
+  ecUserBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  miniBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  miniBtnText: { fontSize: 13, fontWeight: '600' },
 });
