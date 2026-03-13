@@ -31,6 +31,7 @@ export const api = {
 
   createSegnalazione: (token: string, data: any) => apiCall('/segnalazioni', { method: 'POST', token, body: data }),
   getSegnalazioni: (token: string) => apiCall('/segnalazioni', { token }),
+  getSegnalazioneDetail: (token: string, id: string) => apiCall(`/segnalazioni/${id}`, { token }),
 
   createRichiesta: (token: string, data: any) => apiCall('/richieste-documenti', { method: 'POST', token, body: data }),
   getRichieste: (token: string) => apiCall('/richieste-documenti', { token }),
@@ -81,4 +82,31 @@ export const api = {
 
   // Export
   getExportUrl: (type: string) => `${BACKEND_URL}/api/admin/export/${type}`,
+
+  // File Upload
+  uploadFile: async (token: string, uri: string, filename: string, mimeType: string): Promise<any> => {
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      name: filename,
+      type: mimeType,
+    } as any);
+
+    const res = await fetch(`${BACKEND_URL}/api/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Errore upload' }));
+      throw new Error(err.detail || 'Errore upload file');
+    }
+    return res.json();
+  },
+
+  // File URL helper
+  getFileUrl: (fileId: string, filename: string) => `${BACKEND_URL}/api/files/${fileId}/${encodeURIComponent(filename)}`,
 };

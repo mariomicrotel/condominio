@@ -1,10 +1,11 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, uuid, bcrypt, jwt, csv, io
+import os, logging, uuid, bcrypt, jwt, csv, io, shutil
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -19,6 +20,16 @@ db = client[os.environ.get('DB_NAME', 'studio_tardugno')]
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
+# File uploads directory
+UPLOAD_DIR = ROOT_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+ALLOWED_TYPES = {
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
+    'video/mp4', 'video/quicktime', 'video/mpeg', 'video/avi', 'video/webm',
+    'application/pdf',
+}
 
 JWT_SECRET = os.environ.get('JWT_SECRET', 'studio-tardugno-fallback-key')
 JWT_ALGORITHM = "HS256"
@@ -63,7 +74,8 @@ class SegnalazioneCreate(BaseModel):
     tipologia: str
     descrizione: str
     urgenza: str = "Media"
-    immagini: List[str] = []
+    immagini: List[str] = []  # Backward compat - base64 images
+    allegati: List[str] = []  # List of file IDs from /api/upload
 
 class RichiestaDocCreate(BaseModel):
     condominio_id: str
@@ -259,7 +271,8 @@ async def create_segnalazione(data: SegnalazioneCreate, user=Depends(get_current
         "user_telefono": user.get("telefono", ""), "condominio_id": data.condominio_id,
         "qualita": data.qualita, "tipologia": data.tipologia, "descrizione": data.descrizione,
         "urgenza": data.urgenza, "stato": "Inviata", "note_admin": "",
-        "immagini": data.immagini[:5], "created_at": now_iso(), "updated_at": now_iso()
+        "immagini": data.immagini[:5], "allegati": data.allegati[:10],
+        "created_at": now_iso(), "updated_at": now_iso()
     }
     await db.segnalazioni.insert_one(seg)
     await notify_admins("Nuova segnalazione guasti", f"{seg['user_nome']}: {data.tipologia} - Urgenza: {data.urgenza}", "warning")
@@ -276,7 +289,64 @@ async def get_segnalazione(seg_id: str, user=Depends(get_current_user)):
         raise HTTPException(404, "Segnalazione non trovata")
     if user["ruolo"] != "admin" and seg["user_id"] != user["id"]:
         raise HTTPException(403, "Non autorizzato")
+    # Enrich allegati with file details
+    allegati_ids = seg.get("allegati", [])
+    if allegati_ids:
+        files = await db.uploaded_files.find({"id": {"$in": allegati_ids}}, {"_id": 0}).to_list(50)
+        seg["allegati_dettagli"] = files
     return seg
+
+# ================ FILE UPLOAD ================
+
+@api_router.post("/upload")
+async def upload_file(file: UploadFile = File(...), user=Depends(get_current_user)):
+    """Upload a single file (image, video, or PDF). Max 50MB."""
+    if file.content_type and file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(400, f"Tipo file non supportato: {file.content_type}. Formati accettati: immagini (jpg, png, gif, webp), video (mp4, mov), PDF.")
+    
+    # Read file content
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(413, "File troppo grande. Dimensione massima: 50MB")
+    
+    file_id = str(uuid.uuid4())
+    ext = Path(file.filename or "file").suffix.lower() or ".bin"
+    safe_filename = f"{file_id}{ext}"
+    file_path = UPLOAD_DIR / safe_filename
+    
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    file_doc = {
+        "id": file_id,
+        "filename": file.filename or "file",
+        "safe_filename": safe_filename,
+        "content_type": file.content_type or "application/octet-stream",
+        "size": len(content),
+        "user_id": user["id"],
+        "url": f"/api/files/{file_id}/{file.filename or 'file'}",
+        "created_at": now_iso(),
+    }
+    await db.uploaded_files.insert_one(file_doc)
+    
+    return {k: v for k, v in file_doc.items() if k != "_id"}
+
+@api_router.get("/files/{file_id}/{filename}")
+async def serve_file(file_id: str, filename: str):
+    """Serve an uploaded file."""
+    file_doc = await db.uploaded_files.find_one({"id": file_id})
+    if not file_doc:
+        raise HTTPException(404, "File non trovato")
+    
+    file_path = UPLOAD_DIR / file_doc["safe_filename"]
+    if not file_path.exists():
+        raise HTTPException(404, "File non trovato su disco")
+    
+    return FileResponse(
+        path=str(file_path),
+        media_type=file_doc.get("content_type", "application/octet-stream"),
+        filename=file_doc.get("filename", filename),
+    )
 
 # ================ RICHIESTE DOCUMENTI ROUTES ================
 

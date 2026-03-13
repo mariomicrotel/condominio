@@ -225,6 +225,30 @@ backend:
         agent: "main"
         comment: "Tested previously"
 
+  - task: "File upload endpoints (POST /upload, GET /files/{file_id}/{filename})"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: File upload working correctly. POST /api/upload accepts multipart/form-data, validates file types, saves to disk, stores metadata in uploaded_files collection. GET /api/files/{file_id}/{filename} serves files correctly. Authentication required for upload, no auth needed for download."
+
+  - task: "Segnalazioni with allegati (file attachments)"
+    implemented: true
+    working: true
+    file: "backend/server.py" 
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Segnalazioni with allegati working perfectly. Can create segnalazioni with file IDs in allegati array, admin can retrieve segnalazione detail with allegati_dettagli populated with complete file metadata. File type validation, authentication enforcement all working correctly."
+
 frontend:
   - task: "Admin Config tab (view/edit studio info, API keys, export CSV, gestione estratti conto)"
     implemented: true
@@ -375,6 +399,8 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "All Fase 2 backend endpoints have been implemented. Need to test: 1) Config CRUD (GET/PUT /api/admin/config and GET /api/config/public), 2) Notifications (GET /api/notifiche, GET /api/notifiche/count, PUT /api/notifiche/{id}/letto, PUT /api/notifiche/letto-tutte), 3) Trasmissioni (POST /api/trasmissioni, GET /api/trasmissioni, GET /api/admin/trasmissioni, PUT /api/admin/trasmissioni/{id}), 4) Estratto Conto (GET /api/estratto-conto, POST /api/admin/estratto-conto, GET /api/admin/estratti-conto), 5) CSV Export (GET /api/admin/export/segnalazioni, /appuntamenti, /utenti). Auth: Admin credentials: admin@tardugno.it/admin123. Condomino credentials: mario.rossi@email.it/password123. Backend runs on localhost:8001. All endpoints prefixed with /api."
+    message: "Testing file upload endpoint and segnalazione with allegati. New endpoints: 1) POST /api/upload (multipart/form-data with file, auth required), 2) GET /api/files/{file_id}/{filename} (no auth, serves file), 3) GET /api/segnalazioni/{seg_id} (returns segnalazione detail with allegati_dettagli). Test flow: First login as condomino (mario.rossi@email.it/password123), upload a test file via multipart, then create a segnalazione with the file ID in allegati[], then get segnalazione detail as admin and verify allegati_dettagli is populated. Admin creds: admin@tardugno.it/admin123. Backend: localhost:8001. All routes: /api prefix."
   - agent: "testing"
     message: "BACKEND TESTING COMPLETE: All 5 Fase 2 endpoint groups tested successfully (18/19 individual tests passed). Config endpoints working with proper auth, Notifications working with correct admin->condomino flow, Trasmissioni working with file upload and status updates, Estratto Conto working with financial data management, CSV exports working with proper encoding. Existing endpoints (dashboard, condomini) also confirmed working. Backend API is fully functional and ready for production use."
+  - agent: "testing"
+    message: "FILE UPLOAD AND SEGNALAZIONI WITH ALLEGATI TESTING COMPLETE: All 7 test steps passed successfully. 1) Condomino login working, 2) File upload endpoint (POST /api/upload) working with proper multipart/form-data handling and returns complete file metadata, 3) File download (GET /api/files/{file_id}/{filename}) working with correct content serving, 4) File type validation working (rejects unsupported formats like ZIP), 5) Segnalazione creation with allegati working (file IDs properly stored in allegati array), 6) Admin segnalazione detail retrieval working with allegati_dettagli populated with complete file metadata, 7) Authentication enforcement working (upload without token returns 403). All file upload functionality is working correctly."

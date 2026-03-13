@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, TextInput, RefreshControl, ActivityIndicator, Modal, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, TextInput, RefreshControl, ActivityIndicator, Modal, Linking, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -203,6 +203,23 @@ export default function Admin() {
     Linking.openURL(url).catch(() => Alert.alert('Errore', 'Impossibile aprire il link'));
   };
 
+  // Load segnalazione detail (with file info)
+  const loadSegDetail = async (segId: string) => {
+    try {
+      const detail = await api.getSegnalazioneDetail(token!, segId);
+      setModalSeg(detail);
+    } catch {
+      // fallback to list item without file details
+      const item = segnalazioni.find(s => s.id === segId);
+      if (item) setModalSeg(item);
+    }
+  };
+
+  const openFile = (fileUrl: string) => {
+    const fullUrl = `${process.env.EXPO_PUBLIC_BACKEND_URL}${fileUrl}`;
+    Linking.openURL(fullUrl).catch(() => Alert.alert('Errore', 'Impossibile aprire il file'));
+  };
+
   const handleLogout = () => {
     Alert.alert('Esci', 'Vuoi uscire?', [
       { text: 'Annulla' },
@@ -373,7 +390,7 @@ export default function Admin() {
           <FlatList data={segnalazioni} keyExtractor={i => i.id} contentContainerStyle={s.content}
             ListEmptyComponent={<Text style={s.emptyText}>Nessuna segnalazione</Text>}
             renderItem={({ item }) => (
-              <TouchableOpacity testID={`admin-seg-${item.id}`} style={s.listCard} onPress={() => setModalSeg(item)}>
+              <TouchableOpacity testID={`admin-seg-${item.id}`} style={s.listCard} onPress={() => loadSegDetail(item.id)}>
                 <View style={s.listRow}>
                   <View style={[s.iconCircle, { backgroundColor: '#FEF3C7' }]}>
                     <Ionicons name="warning" size={18} color="#D97706" />
@@ -381,7 +398,10 @@ export default function Admin() {
                   <View style={{ flex: 1 }}>
                     <Text style={s.listTitle}>{item.tipologia}</Text>
                     <Text style={s.listSub2}>{item.user_nome} • {item.condominio_nome}</Text>
-                    <Text style={s.listMeta}>{new Date(item.created_at).toLocaleDateString('it-IT')} • Urgenza: {item.urgenza}</Text>
+                    <Text style={s.listMeta}>
+                      {new Date(item.created_at).toLocaleDateString('it-IT')} • Urgenza: {item.urgenza}
+                      {(item.allegati?.length > 0) ? ` • ${item.allegati.length} allegati` : ''}
+                    </Text>
                   </View>
                   <StatusBadge status={item.stato} />
                 </View>
@@ -555,10 +575,37 @@ export default function Admin() {
       {/* Modal: Aggiorna Segnalazione */}
       <Modal visible={!!modalSeg} transparent animationType="slide" onRequestClose={() => setModalSeg(null)}>
         <View style={s.modalOverlay}>
-          <View style={s.modal}>
+          <ScrollView style={s.modal} keyboardShouldPersistTaps="handled">
             <Text style={s.modalTitle}>Aggiorna Segnalazione</Text>
             <Text style={s.modalSub}>{modalSeg?.tipologia} — {modalSeg?.user_nome}</Text>
             <Text style={s.modalDesc}>{modalSeg?.descrizione}</Text>
+
+            {/* Show attachments if available */}
+            {modalSeg?.allegati_dettagli && modalSeg.allegati_dettagli.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={s.modalLabel}>Allegati ({modalSeg.allegati_dettagli.length}):</Text>
+                {modalSeg.allegati_dettagli.map((file: any, idx: number) => {
+                  const isImage = file.content_type?.startsWith('image/');
+                  return (
+                    <TouchableOpacity key={idx} onPress={() => openFile(file.url)} style={s.attachRow}>
+                      {isImage ? (
+                        <Image source={{ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}${file.url}` }} style={s.attachThumb} />
+                      ) : (
+                        <View style={[s.attachIcon, { backgroundColor: file.content_type === 'application/pdf' ? '#FEE2E2' : '#F3E8FF' }]}>
+                          <Ionicons name={file.content_type === 'application/pdf' ? 'document-text' : 'videocam'} size={20} color={file.content_type === 'application/pdf' ? '#DC2626' : '#7C3AED'} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '500', color: Colors.textMain }} numberOfLines={1}>{file.filename}</Text>
+                        <Text style={{ fontSize: 11, color: Colors.textMuted }}>{file.content_type} • {file.size ? `${(file.size / 1024).toFixed(0)} KB` : ''}</Text>
+                      </View>
+                      <Ionicons name="open-outline" size={18} color={Colors.sky} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
             <Text style={s.modalLabel}>Cambia stato:</Text>
             {['Presa in carico', 'In lavorazione', 'Risolta'].map(st => (
               <TouchableOpacity key={st} testID={`seg-status-${st}`} style={[s.statusBtn, modalSeg?.stato === st && { backgroundColor: Colors.skyLight }]} onPress={() => updateSeg(modalSeg.id, st)}>
@@ -566,7 +613,7 @@ export default function Admin() {
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={s.closeBtn} onPress={() => setModalSeg(null)}><Text style={s.closeBtnText}>Chiudi</Text></TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -763,4 +810,8 @@ const s = StyleSheet.create({
   ecUserBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   ecUserName: { fontSize: 14, fontWeight: '600', color: Colors.textMain },
   ecUserCond: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
+  // Attachments in modal
+  attachRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  attachThumb: { width: 44, height: 44, borderRadius: 8, backgroundColor: Colors.bg },
+  attachIcon: { width: 44, height: 44, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
 });
