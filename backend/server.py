@@ -1,74 +1,495 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
+import os, logging, uuid, bcrypt, jwt
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
-import uuid
-from datetime import datetime
-
+from typing import List, Optional
+from datetime import datetime, timezone, timedelta
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ.get('DB_NAME', 'studio_tardugno')]
 
-# Create the main app without a prefix
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+JWT_SECRET = os.environ.get('JWT_SECRET', 'studio-tardugno-fallback-key')
+JWT_ALGORITHM = "HS256"
+JWT_EXP_HOURS = 72
+security = HTTPBearer()
 
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+# ================ MODELS ================
 
-# Add your routes to the router instead of directly to app
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    nome: str
+    cognome: str
+    telefono: str = ""
+    indirizzo: str = ""
+    codice_fiscale: str = ""
+    codice_invito: str = ""
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class UserUpdate(BaseModel):
+    nome: Optional[str] = None
+    cognome: Optional[str] = None
+    telefono: Optional[str] = None
+    indirizzo: Optional[str] = None
+    codice_fiscale: Optional[str] = None
+
+class CondominioCreate(BaseModel):
+    nome: str
+    indirizzo: str
+    codice_fiscale: str = ""
+    note: str = ""
+
+class SegnalazioneCreate(BaseModel):
+    condominio_id: str
+    qualita: str
+    tipologia: str
+    descrizione: str
+    urgenza: str = "Media"
+    immagini: List[str] = []
+
+class RichiestaDocCreate(BaseModel):
+    condominio_id: str
+    tipo_documento: str
+    note: str = ""
+    formato: str = "PDF"
+
+class AppuntamentoCreate(BaseModel):
+    motivo: str
+    data_richiesta: str
+    fascia_oraria: str
+    note: str = ""
+
+class AvvisoCreate(BaseModel):
+    condominio_id: Optional[str] = None
+    titolo: str
+    testo: str
+    categoria: str = "Avviso generico"
+
+class CodiceInvitoCreate(BaseModel):
+    condominio_id: str
+    unita_immobiliare: str = ""
+    qualita: str = "Proprietario"
+
+class AdminSegnalazioneUpdate(BaseModel):
+    stato: Optional[str] = None
+    note_admin: Optional[str] = None
+
+class AdminRichiestaUpdate(BaseModel):
+    stato: Optional[str] = None
+    file_url: Optional[str] = None
+
+class AdminAppuntamentoUpdate(BaseModel):
+    stato: Optional[str] = None
+    data_confermata: Optional[str] = None
+    note_admin: Optional[str] = None
+
+# ================ AUTH HELPERS ================
+
+def hash_pw(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+def verify_pw(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
+def create_token(user_id: str, ruolo: str) -> str:
+    return jwt.encode(
+        {"user_id": user_id, "ruolo": ruolo, "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXP_HOURS)},
+        JWT_SECRET, algorithm=JWT_ALGORITHM
+    )
+
+def decode_token(token: str) -> dict:
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token scaduto")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Token non valido")
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    payload = decode_token(credentials.credentials)
+    user = await db.users.find_one({"id": payload["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(401, "Utente non trovato")
+    return user
+
+async def get_admin_user(user=Depends(get_current_user)):
+    if user.get("ruolo") != "admin":
+        raise HTTPException(403, "Accesso non autorizzato")
+    return user
+
+def now_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+def clean_doc(doc):
+    if doc and "_id" in doc:
+        del doc["_id"]
+    return doc
+
+# ================ AUTH ROUTES ================
+
+@api_router.post("/auth/register")
+async def register(data: UserCreate):
+    existing = await db.users.find_one({"email": data.email.lower()})
+    if existing:
+        raise HTTPException(400, "Email già registrata")
+
+    user_id = str(uuid.uuid4())
+    user = {
+        "id": user_id, "email": data.email.lower(), "password_hash": hash_pw(data.password),
+        "nome": data.nome, "cognome": data.cognome, "telefono": data.telefono,
+        "indirizzo": data.indirizzo, "codice_fiscale": data.codice_fiscale,
+        "ruolo": "condomino", "created_at": now_iso()
+    }
+
+    if data.codice_invito:
+        invite = await db.codici_invito.find_one({"codice": data.codice_invito, "usato": False})
+        if not invite:
+            raise HTTPException(400, "Codice invito non valido o già utilizzato")
+        await db.users.insert_one(user)
+        await db.user_condomini.insert_one({
+            "id": str(uuid.uuid4()), "user_id": user_id, "condominio_id": invite["condominio_id"],
+            "unita_immobiliare": invite.get("unita_immobiliare", ""), "qualita": invite.get("qualita", "Proprietario")
+        })
+        await db.codici_invito.update_one({"codice": data.codice_invito}, {"$set": {"usato": True, "user_id": user_id}})
+    else:
+        await db.users.insert_one(user)
+
+    token = create_token(user_id, "condomino")
+    return {"token": token, "user": {k: v for k, v in user.items() if k != "password_hash" and k != "_id"}}
+
+@api_router.post("/auth/login")
+async def login(data: UserLogin):
+    user = await db.users.find_one({"email": data.email.lower()})
+    if not user or not verify_pw(data.password, user["password_hash"]):
+        raise HTTPException(401, "Credenziali non valide")
+    token = create_token(user["id"], user["ruolo"])
+    return {"token": token, "user": {k: v for k, v in user.items() if k not in ["password_hash", "_id"]}}
+
+@api_router.get("/auth/profile")
+async def get_profile(user=Depends(get_current_user)):
+    assocs = await db.user_condomini.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+    condomini = []
+    for a in assocs:
+        cond = await db.condomini.find_one({"id": a["condominio_id"]}, {"_id": 0})
+        if cond:
+            condomini.append({**cond, "unita_immobiliare": a.get("unita_immobiliare", ""), "qualita": a.get("qualita", "")})
+    profile = {k: v for k, v in user.items() if k != "password_hash"}
+    profile["condomini"] = condomini
+    return profile
+
+@api_router.put("/auth/profile")
+async def update_profile(data: UserUpdate, user=Depends(get_current_user)):
+    upd = {k: v for k, v in data.dict(exclude_none=True).items()}
+    if upd:
+        await db.users.update_one({"id": user["id"]}, {"$set": upd})
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password_hash": 0})
+    return updated
+
+# ================ CONDOMINI ROUTES ================
+
+@api_router.get("/condomini")
+async def list_condomini(user=Depends(get_current_user)):
+    if user["ruolo"] == "admin":
+        return await db.condomini.find({}, {"_id": 0}).to_list(1000)
+    assocs = await db.user_condomini.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+    ids = [a["condominio_id"] for a in assocs]
+    return await db.condomini.find({"id": {"$in": ids}}, {"_id": 0}).to_list(100)
+
+@api_router.post("/condomini")
+async def create_condominio(data: CondominioCreate, user=Depends(get_admin_user)):
+    cond = {"id": str(uuid.uuid4()), "nome": data.nome, "indirizzo": data.indirizzo,
+            "codice_fiscale": data.codice_fiscale, "note": data.note, "created_at": now_iso()}
+    await db.condomini.insert_one(cond)
+    return {k: v for k, v in cond.items() if k != "_id"}
+
+@api_router.put("/condomini/{cond_id}")
+async def update_condominio(cond_id: str, data: CondominioCreate, user=Depends(get_admin_user)):
+    await db.condomini.update_one({"id": cond_id}, {"$set": data.dict()})
+    return clean_doc(await db.condomini.find_one({"id": cond_id}, {"_id": 0}))
+
+@api_router.delete("/condomini/{cond_id}")
+async def delete_condominio(cond_id: str, user=Depends(get_admin_user)):
+    await db.condomini.delete_one({"id": cond_id})
+    return {"message": "Condominio eliminato"}
+
+# ================ SEGNALAZIONI ROUTES ================
+
+@api_router.post("/segnalazioni")
+async def create_segnalazione(data: SegnalazioneCreate, user=Depends(get_current_user)):
+    seg_id = str(uuid.uuid4())
+    protocollo = f"SEG-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{seg_id[:8].upper()}"
+    seg = {
+        "id": seg_id, "protocollo": protocollo, "user_id": user["id"],
+        "user_nome": f"{user['nome']} {user['cognome']}", "user_email": user["email"],
+        "user_telefono": user.get("telefono", ""), "condominio_id": data.condominio_id,
+        "qualita": data.qualita, "tipologia": data.tipologia, "descrizione": data.descrizione,
+        "urgenza": data.urgenza, "stato": "Inviata", "note_admin": "",
+        "immagini": data.immagini[:5], "created_at": now_iso(), "updated_at": now_iso()
+    }
+    await db.segnalazioni.insert_one(seg)
+    return {k: v for k, v in seg.items() if k != "_id"}
+
+@api_router.get("/segnalazioni")
+async def list_segnalazioni(user=Depends(get_current_user)):
+    return await db.segnalazioni.find({"user_id": user["id"]}, {"_id": 0, "immagini": 0}).sort("created_at", -1).to_list(100)
+
+@api_router.get("/segnalazioni/{seg_id}")
+async def get_segnalazione(seg_id: str, user=Depends(get_current_user)):
+    seg = await db.segnalazioni.find_one({"id": seg_id}, {"_id": 0})
+    if not seg:
+        raise HTTPException(404, "Segnalazione non trovata")
+    if user["ruolo"] != "admin" and seg["user_id"] != user["id"]:
+        raise HTTPException(403, "Non autorizzato")
+    return seg
+
+# ================ RICHIESTE DOCUMENTI ROUTES ================
+
+@api_router.post("/richieste-documenti")
+async def create_richiesta(data: RichiestaDocCreate, user=Depends(get_current_user)):
+    rich = {
+        "id": str(uuid.uuid4()), "user_id": user["id"],
+        "user_nome": f"{user['nome']} {user['cognome']}", "condominio_id": data.condominio_id,
+        "tipo_documento": data.tipo_documento, "note": data.note, "formato": data.formato,
+        "stato": "In attesa", "file_url": "", "created_at": now_iso()
+    }
+    await db.richieste_documenti.insert_one(rich)
+    return {k: v for k, v in rich.items() if k != "_id"}
+
+@api_router.get("/richieste-documenti")
+async def list_richieste(user=Depends(get_current_user)):
+    return await db.richieste_documenti.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+# ================ APPUNTAMENTI ROUTES ================
+
+@api_router.post("/appuntamenti")
+async def create_appuntamento(data: AppuntamentoCreate, user=Depends(get_current_user)):
+    appt = {
+        "id": str(uuid.uuid4()), "user_id": user["id"],
+        "user_nome": f"{user['nome']} {user['cognome']}", "user_email": user["email"],
+        "user_telefono": user.get("telefono", ""), "motivo": data.motivo,
+        "data_richiesta": data.data_richiesta, "fascia_oraria": data.fascia_oraria,
+        "data_confermata": "", "stato": "In attesa di conferma",
+        "note": data.note, "note_admin": "", "created_at": now_iso()
+    }
+    await db.appuntamenti.insert_one(appt)
+    return {k: v for k, v in appt.items() if k != "_id"}
+
+@api_router.get("/appuntamenti")
+async def list_appuntamenti(user=Depends(get_current_user)):
+    return await db.appuntamenti.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+# ================ AVVISI/BACHECA ROUTES ================
+
+@api_router.get("/avvisi")
+async def list_avvisi(user=Depends(get_current_user)):
+    assocs = await db.user_condomini.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+    cond_ids = [a["condominio_id"] for a in assocs]
+    avvisi = await db.avvisi.find(
+        {"$or": [{"condominio_id": {"$in": cond_ids}}, {"condominio_id": None}, {"condominio_id": ""}]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    letti = await db.avvisi_letti.find({"user_id": user["id"]}, {"_id": 0}).to_list(1000)
+    letti_ids = {l["avviso_id"] for l in letti}
+    for a in avvisi:
+        a["letto"] = a["id"] in letti_ids
+    return avvisi
+
+@api_router.put("/avvisi/{avviso_id}/letto")
+async def mark_letto(avviso_id: str, user=Depends(get_current_user)):
+    existing = await db.avvisi_letti.find_one({"user_id": user["id"], "avviso_id": avviso_id})
+    if not existing:
+        await db.avvisi_letti.insert_one({"id": str(uuid.uuid4()), "user_id": user["id"], "avviso_id": avviso_id})
+    return {"message": "Segnato come letto"}
+
+# ================ ADMIN ROUTES ================
+
+@api_router.get("/admin/dashboard")
+async def admin_dashboard(user=Depends(get_admin_user)):
+    return {
+        "totale_utenti": await db.users.count_documents({"ruolo": "condomino"}),
+        "totale_condomini": await db.condomini.count_documents({}),
+        "segnalazioni_aperte": await db.segnalazioni.count_documents({"stato": {"$ne": "Risolta"}}),
+        "richieste_in_attesa": await db.richieste_documenti.count_documents({"stato": "In attesa"}),
+        "appuntamenti_da_confermare": await db.appuntamenti.count_documents({"stato": "In attesa di conferma"}),
+        "totale_avvisi": await db.avvisi.count_documents({})
+    }
+
+@api_router.get("/admin/segnalazioni")
+async def admin_segnalazioni(user=Depends(get_admin_user)):
+    segs = await db.segnalazioni.find({}, {"_id": 0, "immagini": 0}).sort("created_at", -1).to_list(1000)
+    for s in segs:
+        c = await db.condomini.find_one({"id": s.get("condominio_id")}, {"_id": 0})
+        s["condominio_nome"] = c["nome"] if c else "N/A"
+    return segs
+
+@api_router.put("/admin/segnalazioni/{seg_id}")
+async def admin_update_seg(seg_id: str, data: AdminSegnalazioneUpdate, user=Depends(get_admin_user)):
+    upd = {"updated_at": now_iso()}
+    if data.stato:
+        upd["stato"] = data.stato
+    if data.note_admin is not None:
+        upd["note_admin"] = data.note_admin
+    await db.segnalazioni.update_one({"id": seg_id}, {"$set": upd})
+    return clean_doc(await db.segnalazioni.find_one({"id": seg_id}, {"_id": 0}))
+
+@api_router.get("/admin/richieste-documenti")
+async def admin_richieste(user=Depends(get_admin_user)):
+    return await db.richieste_documenti.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+@api_router.put("/admin/richieste-documenti/{rich_id}")
+async def admin_update_richiesta(rich_id: str, data: AdminRichiestaUpdate, user=Depends(get_admin_user)):
+    upd = {}
+    if data.stato:
+        upd["stato"] = data.stato
+    if data.file_url:
+        upd["file_url"] = data.file_url
+    if upd:
+        await db.richieste_documenti.update_one({"id": rich_id}, {"$set": upd})
+    return clean_doc(await db.richieste_documenti.find_one({"id": rich_id}, {"_id": 0}))
+
+@api_router.get("/admin/appuntamenti")
+async def admin_appuntamenti(user=Depends(get_admin_user)):
+    return await db.appuntamenti.find({}, {"_id": 0}).sort("data_richiesta", -1).to_list(1000)
+
+@api_router.put("/admin/appuntamenti/{app_id}")
+async def admin_update_app(app_id: str, data: AdminAppuntamentoUpdate, user=Depends(get_admin_user)):
+    upd = {}
+    if data.stato:
+        upd["stato"] = data.stato
+    if data.data_confermata:
+        upd["data_confermata"] = data.data_confermata
+    if data.note_admin is not None:
+        upd["note_admin"] = data.note_admin
+    if upd:
+        await db.appuntamenti.update_one({"id": app_id}, {"$set": upd})
+    return clean_doc(await db.appuntamenti.find_one({"id": app_id}, {"_id": 0}))
+
+@api_router.post("/admin/avvisi")
+async def admin_create_avviso(data: AvvisoCreate, user=Depends(get_admin_user)):
+    avviso = {"id": str(uuid.uuid4()), "condominio_id": data.condominio_id,
+              "titolo": data.titolo, "testo": data.testo, "categoria": data.categoria, "created_at": now_iso()}
+    await db.avvisi.insert_one(avviso)
+    return {k: v for k, v in avviso.items() if k != "_id"}
+
+@api_router.get("/admin/avvisi")
+async def admin_list_avvisi(user=Depends(get_admin_user)):
+    return await db.avvisi.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+@api_router.delete("/admin/avvisi/{avviso_id}")
+async def admin_delete_avviso(avviso_id: str, user=Depends(get_admin_user)):
+    await db.avvisi.delete_one({"id": avviso_id})
+    return {"message": "Avviso eliminato"}
+
+@api_router.get("/admin/utenti")
+async def admin_utenti(user=Depends(get_admin_user)):
+    utenti = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    for u in utenti:
+        assocs = await db.user_condomini.find({"user_id": u["id"]}, {"_id": 0}).to_list(100)
+        names = []
+        for a in assocs:
+            c = await db.condomini.find_one({"id": a["condominio_id"]}, {"_id": 0})
+            if c:
+                names.append(c["nome"])
+        u["condomini_nomi"] = names
+    return utenti
+
+@api_router.post("/admin/codici-invito")
+async def admin_create_codice(data: CodiceInvitoCreate, user=Depends(get_admin_user)):
+    codice = {"id": str(uuid.uuid4()), "codice": str(uuid.uuid4())[:8].upper(),
+              "condominio_id": data.condominio_id, "unita_immobiliare": data.unita_immobiliare,
+              "qualita": data.qualita, "usato": False, "user_id": None, "created_at": now_iso()}
+    await db.codici_invito.insert_one(codice)
+    return {k: v for k, v in codice.items() if k != "_id"}
+
+@api_router.get("/admin/codici-invito")
+async def admin_codici(user=Depends(get_admin_user)):
+    return await db.codici_invito.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+# ================ SEED ================
+
+@api_router.post("/seed")
+async def seed_data():
+    admin = await db.users.find_one({"email": "admin@tardugno.it"})
+    if admin:
+        return {"message": "Dati già inseriti", "admin_email": "admin@tardugno.it", "admin_password": "admin123"}
+
+    admin_id = str(uuid.uuid4())
+    await db.users.insert_one({
+        "id": admin_id, "email": "admin@tardugno.it", "password_hash": hash_pw("admin123"),
+        "nome": "Velia Elvira", "cognome": "Tardugno", "telefono": "+39 089 123456",
+        "indirizzo": "Via Raffaele Ricci, 37 – 84129 Salerno", "codice_fiscale": "TRDVLL60A41H703X",
+        "ruolo": "admin", "created_at": now_iso()
+    })
+
+    cond1_id, cond2_id = str(uuid.uuid4()), str(uuid.uuid4())
+    await db.condomini.insert_many([
+        {"id": cond1_id, "nome": "Condominio Palazzo Azzurro", "indirizzo": "Via Roma, 42 – 84121 Salerno",
+         "codice_fiscale": "90001234567", "note": "24 unità abitative", "created_at": now_iso()},
+        {"id": cond2_id, "nome": "Condominio Residenza Marina", "indirizzo": "Lungomare Trieste, 15 – 84121 Salerno",
+         "codice_fiscale": "90009876543", "note": "16 unità, fronte mare", "created_at": now_iso()}
+    ])
+
+    user_id = str(uuid.uuid4())
+    await db.users.insert_one({
+        "id": user_id, "email": "mario.rossi@email.it", "password_hash": hash_pw("password123"),
+        "nome": "Mario", "cognome": "Rossi", "telefono": "+39 333 1234567",
+        "indirizzo": "Via Roma, 42 – Int. 5 – 84121 Salerno", "codice_fiscale": "RSSMRA80A01H703X",
+        "ruolo": "condomino", "created_at": now_iso()
+    })
+
+    await db.user_condomini.insert_one({
+        "id": str(uuid.uuid4()), "user_id": user_id, "condominio_id": cond1_id,
+        "unita_immobiliare": "Interno 5, Piano 2", "qualita": "Proprietario"
+    })
+
+    await db.codici_invito.insert_one({
+        "id": str(uuid.uuid4()), "codice": "WELCOME1", "condominio_id": cond1_id,
+        "unita_immobiliare": "Interno 10, Piano 4", "qualita": "Proprietario",
+        "usato": False, "user_id": None, "created_at": now_iso()
+    })
+
+    await db.avvisi.insert_many([
+        {"id": str(uuid.uuid4()), "condominio_id": cond1_id, "titolo": "Convocazione Assemblea Ordinaria",
+         "testo": "Si convoca l'assemblea ordinaria per il 15 Marzo 2026 alle 17:00 presso la sala condominiale. ODG: approvazione bilancio consuntivo 2025 e preventivo 2026.",
+         "categoria": "Convocazione assemblea", "created_at": now_iso()},
+        {"id": str(uuid.uuid4()), "condominio_id": cond1_id, "titolo": "Lavori Manutenzione Ascensore",
+         "testo": "Dal 10 al 12 Marzo 2026 lavori di manutenzione all'ascensore. L'ascensore non sarà disponibile.",
+         "categoria": "Lavori in corso", "created_at": now_iso()},
+        {"id": str(uuid.uuid4()), "condominio_id": None, "titolo": "Chiusura Studio Festività",
+         "testo": "Lo studio resterà chiuso dal 24 Dicembre al 6 Gennaio per le festività natalizie.",
+         "categoria": "Avviso generico", "created_at": now_iso()}
+    ])
+
+    return {
+        "message": "Dati seed inseriti con successo",
+        "admin": {"email": "admin@tardugno.it", "password": "admin123"},
+        "condomino": {"email": "mario.rossi@email.it", "password": "password123"},
+        "codice_invito": "WELCOME1"
+    }
+
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Studio Tardugno & Bonifacio API", "version": "1.0.0"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
-
-# Include the router in the main app
 app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
