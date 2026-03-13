@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,9 +39,7 @@ export default function Login() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.logoWrap}>
-            <View style={s.logoCircle}>
-              <Ionicons name="business" size={48} color={Colors.white} />
-            </View>
+            <Image source={require('../assets/images/logo_building.png')} style={s.logoImg} accessibilityLabel="Logo Studio Tardugno & Bonifacio" />
             <Text style={s.brand}>Studio Tardugno</Text>
             <Text style={s.brandSub}>& Bonifacio</Text>
             <Text style={s.subtitle}>Consulenza contabile, fiscale e condominiale</Text>
@@ -83,7 +81,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
   logoWrap: { alignItems: 'center', marginBottom: 40 },
-  logoCircle: { width: 88, height: 88, borderRadius: 44, backgroundColor: Colors.navy, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  logoImg: { width: 88, height: 88, marginBottom: 16 },
   brand: { fontSize: 26, fontWeight: '700', color: Colors.navy },
   brandSub: { fontSize: 22, fontWeight: '600', color: Colors.sky },
   subtitle: { fontSize: 13, color: Colors.textMuted, marginTop: 6, textAlign: 'center' },

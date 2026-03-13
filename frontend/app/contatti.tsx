@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../src/constants/theme';
@@ -17,9 +17,7 @@ export default function Contatti() {
       <ScrollView contentContainerStyle={s.scroll}>
         {/* Header card */}
         <View style={s.headerCard}>
-          <View style={s.logoWrap}>
-            <Ionicons name="business" size={36} color={Colors.white} />
-          </View>
+          <Image source={require('../assets/images/logo_building.png')} style={s.logoImg} accessibilityLabel="Logo Studio" />
           <Text style={s.studioName}>Studio Tardugno & Bonifacio</Text>
           <Text style={s.studioSub}>Consulenza contabile, fiscale e condominiale</Text>
         </View>
@@ -92,7 +90,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { padding: 16 },
   headerCard: { backgroundColor: Colors.navy, borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 16 },
-  logoWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  logoImg: { width: 72, height: 72, marginBottom: 12 },
   studioName: { fontSize: 20, fontWeight: '700', color: Colors.white, textAlign: 'center' },
   studioSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4, textAlign: 'center' },
   card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },

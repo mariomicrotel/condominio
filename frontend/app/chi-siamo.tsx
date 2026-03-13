@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Linking, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Linking, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../src/constants/theme';
@@ -19,7 +19,7 @@ export default function ChiSiamo() {
       <ScrollView contentContainerStyle={s.scroll}>
         {/* Hero */}
         <View style={s.hero}>
-          <Ionicons name="business" size={56} color={Colors.white} />
+          <Image source={require('../assets/images/logo_building.png')} style={s.heroLogo} accessibilityLabel="Logo Studio" />
           <Text style={s.heroTitle}>Studio Tardugno & Bonifacio</Text>
           <Text style={s.heroSub}>Salerno — Dal 1984</Text>
         </View>
@@ -97,6 +97,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { padding: 16 },
   hero: { backgroundColor: Colors.navy, borderRadius: 16, padding: 32, alignItems: 'center', marginBottom: 16 },
+  heroLogo: { width: 80, height: 80, marginBottom: 8 },
   heroTitle: { fontSize: 22, fontWeight: '700', color: Colors.white, marginTop: 12, textAlign: 'center' },
   heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
   card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },

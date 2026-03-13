@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -44,9 +44,7 @@ export default function Home() {
         {/* Header */}
         <View style={s.header}>
           <View style={s.headerLeft}>
-            <View style={s.logoSmall}>
-              <Ionicons name="business" size={28} color={Colors.white} />
-            </View>
+            <Image source={require('../assets/images/logo_building.png')} style={s.logoImg} accessibilityLabel="Logo Studio" />
             <View>
               <Text style={s.headerTitle}>Studio Tardugno</Text>
               <Text style={s.headerSub}>& Bonifacio</Text>
@@ -135,7 +133,7 @@ const s = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 32 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  logoSmall: { width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.navy, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  logoImg: { width: 48, height: 48, marginRight: 12 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.navy },
   headerSub: { fontSize: 14, fontWeight: '500', color: Colors.sky },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
