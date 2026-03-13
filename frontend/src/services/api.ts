@@ -56,4 +56,28 @@ export const api = {
   getCodiciInvito: (token: string) => apiCall('/admin/codici-invito', { token }),
   associaUtente: (token: string, data: any) => apiCall('/admin/associa-utente', { method: 'POST', token, body: data }),
   disassociaUtente: (token: string, assocId: string) => apiCall(`/admin/associazione/${assocId}`, { method: 'DELETE', token }),
+
+  // Notifiche
+  getNotifiche: (token: string) => apiCall('/notifiche', { token }),
+  getNotificheCount: (token: string) => apiCall('/notifiche/count', { token }),
+  markNotificaLetta: (token: string, id: string) => apiCall(`/notifiche/${id}/letto`, { method: 'PUT', token }),
+  markAllLette: (token: string) => apiCall('/notifiche/letto-tutte', { method: 'PUT', token }),
+
+  // Trasmissioni
+  createTrasmissione: (token: string, data: any) => apiCall('/trasmissioni', { method: 'POST', token, body: data }),
+  getTrasmissioni: (token: string) => apiCall('/trasmissioni', { token }),
+  getAdminTrasmissioni: (token: string) => apiCall('/admin/trasmissioni', { token }),
+
+  // Estratto Conto
+  getEstrattoConto: (token: string) => apiCall('/estratto-conto', { token }),
+  upsertEstrattoConto: (token: string, data: any) => apiCall('/admin/estratto-conto', { method: 'POST', token, body: data }),
+  getAdminEstrattiConto: (token: string) => apiCall('/admin/estratti-conto', { token }),
+
+  // Config
+  getConfig: (token: string) => apiCall('/admin/config', { token }),
+  updateConfig: (token: string, data: any) => apiCall('/admin/config', { method: 'PUT', token, body: data }),
+  getPublicConfig: () => apiCall('/config/public'),
+
+  // Export
+  getExportUrl: (type: string) => `${BACKEND_URL}/api/admin/export/${type}`,
 };

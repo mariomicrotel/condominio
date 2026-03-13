@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, TextInput, RefreshControl, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, TextInput, RefreshControl, ActivityIndicator, Modal, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +8,7 @@ import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
 import { StatusBadge, PrimaryButton, PickerSelect } from '../src/components/SharedComponents';
 
-type Tab = 'dashboard' | 'condomini' | 'utenti' | 'segnalazioni' | 'appuntamenti' | 'avvisi';
+type Tab = 'dashboard' | 'condomini' | 'utenti' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'config';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Home', icon: 'grid' },
@@ -17,6 +17,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'segnalazioni', label: 'Guasti', icon: 'warning' },
   { key: 'appuntamenti', label: 'App.', icon: 'calendar' },
   { key: 'avvisi', label: 'Avvisi', icon: 'megaphone' },
+  { key: 'config', label: 'Config', icon: 'cog' },
 ];
 
 const QUALITA_OPT = ['Proprietario', 'Inquilino', 'Delegato', 'Altro'];

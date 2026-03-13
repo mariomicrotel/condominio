@@ -1,9 +1,10 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, uuid, bcrypt, jwt
+import os, logging, uuid, bcrypt, jwt, csv, io
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -105,6 +106,29 @@ class AdminAppuntamentoUpdate(BaseModel):
     stato: Optional[str] = None
     data_confermata: Optional[str] = None
     note_admin: Optional[str] = None
+
+class TrasmissioneCreate(BaseModel):
+    condominio_id: str = ""
+    oggetto: str
+    note: str = ""
+    files: List[dict] = []  # [{filename, data (base64)}]
+
+class EstrattoContoCreate(BaseModel):
+    user_id: str
+    condominio_id: str
+    periodo: str = ""
+    quote_versate: float = 0
+    quote_da_versare: float = 0
+    scadenza: str = ""
+    saldo: float = 0
+    note: str = ""
+
+class ConfigUpdate(BaseModel):
+    google_maps_api_key: str = ""
+    firebase_key: str = ""
+    studio_telefono: str = ""
+    studio_email: str = ""
+    studio_pec: str = ""
 
 # ================ AUTH HELPERS ================
 
@@ -238,6 +262,7 @@ async def create_segnalazione(data: SegnalazioneCreate, user=Depends(get_current
         "immagini": data.immagini[:5], "created_at": now_iso(), "updated_at": now_iso()
     }
     await db.segnalazioni.insert_one(seg)
+    await notify_admins("Nuova segnalazione guasti", f"{seg['user_nome']}: {data.tipologia} - Urgenza: {data.urgenza}", "warning")
     return {k: v for k, v in seg.items() if k != "_id"}
 
 @api_router.get("/segnalazioni")
@@ -341,7 +366,10 @@ async def admin_update_seg(seg_id: str, data: AdminSegnalazioneUpdate, user=Depe
     if data.note_admin is not None:
         upd["note_admin"] = data.note_admin
     await db.segnalazioni.update_one({"id": seg_id}, {"$set": upd})
-    return clean_doc(await db.segnalazioni.find_one({"id": seg_id}, {"_id": 0}))
+    seg = await db.segnalazioni.find_one({"id": seg_id}, {"_id": 0})
+    if seg and data.stato:
+        await create_notifica(seg["user_id"], "Segnalazione aggiornata", f"La tua segnalazione '{seg['tipologia']}' è ora: {data.stato}", "warning")
+    return clean_doc(seg)
 
 @api_router.get("/admin/richieste-documenti")
 async def admin_richieste(user=Depends(get_admin_user)):
@@ -373,13 +401,26 @@ async def admin_update_app(app_id: str, data: AdminAppuntamentoUpdate, user=Depe
         upd["note_admin"] = data.note_admin
     if upd:
         await db.appuntamenti.update_one({"id": app_id}, {"$set": upd})
-    return clean_doc(await db.appuntamenti.find_one({"id": app_id}, {"_id": 0}))
+    appt = await db.appuntamenti.find_one({"id": app_id}, {"_id": 0})
+    if appt and data.stato:
+        await create_notifica(appt["user_id"], "Appuntamento aggiornato", f"Il tuo appuntamento '{appt['motivo']}' è ora: {data.stato}", "calendar")
+    return clean_doc(appt)
 
 @api_router.post("/admin/avvisi")
 async def admin_create_avviso(data: AvvisoCreate, user=Depends(get_admin_user)):
     avviso = {"id": str(uuid.uuid4()), "condominio_id": data.condominio_id,
               "titolo": data.titolo, "testo": data.testo, "categoria": data.categoria, "created_at": now_iso()}
     await db.avvisi.insert_one(avviso)
+    # Notify condomini users
+    if data.condominio_id:
+        assocs = await db.user_condomini.find({"condominio_id": data.condominio_id}, {"_id": 0}).to_list(1000)
+    else:
+        assocs = await db.user_condomini.find({}, {"_id": 0}).to_list(1000)
+    notified = set()
+    for a in assocs:
+        if a["user_id"] not in notified:
+            await create_notifica(a["user_id"], f"Nuovo avviso: {data.titolo}", data.testo[:100], "announcement")
+            notified.add(a["user_id"])
     return {k: v for k, v in avviso.items() if k != "_id"}
 
 @api_router.get("/admin/avvisi")
@@ -447,6 +488,179 @@ async def admin_create_codice(data: CodiceInvitoCreate, user=Depends(get_admin_u
 @api_router.get("/admin/codici-invito")
 async def admin_codici(user=Depends(get_admin_user)):
     return await db.codici_invito.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+# ================ NOTIFICATION HELPER ================
+
+async def create_notifica(user_id: str, titolo: str, messaggio: str, tipo: str = "info", link: str = ""):
+    notifica = {
+        "id": str(uuid.uuid4()), "user_id": user_id, "titolo": titolo,
+        "messaggio": messaggio, "tipo": tipo, "link": link,
+        "letto": False, "created_at": now_iso()
+    }
+    await db.notifiche.insert_one(notifica)
+
+async def notify_admins(titolo: str, messaggio: str, tipo: str = "info", link: str = ""):
+    admins = await db.users.find({"ruolo": "admin"}, {"_id": 0, "id": 1}).to_list(100)
+    for a in admins:
+        await create_notifica(a["id"], titolo, messaggio, tipo, link)
+
+# ================ NOTIFICHE ROUTES ================
+
+@api_router.get("/notifiche")
+async def list_notifiche(user=Depends(get_current_user)):
+    return await db.notifiche.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+
+@api_router.get("/notifiche/count")
+async def count_notifiche(user=Depends(get_current_user)):
+    count = await db.notifiche.count_documents({"user_id": user["id"], "letto": False})
+    return {"count": count}
+
+@api_router.put("/notifiche/{notifica_id}/letto")
+async def mark_notifica_letta(notifica_id: str, user=Depends(get_current_user)):
+    await db.notifiche.update_one({"id": notifica_id, "user_id": user["id"]}, {"$set": {"letto": True}})
+    return {"message": "Segnata come letta"}
+
+@api_router.put("/notifiche/letto-tutte")
+async def mark_all_lette(user=Depends(get_current_user)):
+    await db.notifiche.update_many({"user_id": user["id"], "letto": False}, {"$set": {"letto": True}})
+    return {"message": "Tutte le notifiche segnate come lette"}
+
+# ================ TRASMISSIONI ROUTES ================
+
+@api_router.post("/trasmissioni")
+async def create_trasmissione(data: TrasmissioneCreate, user=Depends(get_current_user)):
+    trasm = {
+        "id": str(uuid.uuid4()), "user_id": user["id"],
+        "user_nome": f"{user['nome']} {user['cognome']}", "condominio_id": data.condominio_id,
+        "oggetto": data.oggetto, "note": data.note, "stato": "Inviato",
+        "files": data.files[:5], "created_at": now_iso()
+    }
+    await db.trasmissioni.insert_one(trasm)
+    await notify_admins("Nuova trasmissione documenti", f"{trasm['user_nome']} ha trasmesso: {data.oggetto}", "document", "/admin")
+    return {k: v for k, v in trasm.items() if k != "_id"}
+
+@api_router.get("/trasmissioni")
+async def list_trasmissioni(user=Depends(get_current_user)):
+    return await db.trasmissioni.find({"user_id": user["id"]}, {"_id": 0, "files": 0}).sort("created_at", -1).to_list(100)
+
+@api_router.get("/admin/trasmissioni")
+async def admin_trasmissioni(user=Depends(get_admin_user)):
+    return await db.trasmissioni.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+@api_router.put("/admin/trasmissioni/{trasm_id}")
+async def admin_update_trasm(trasm_id: str, stato: str = "Ricevuto", user=Depends(get_admin_user)):
+    await db.trasmissioni.update_one({"id": trasm_id}, {"$set": {"stato": stato}})
+    trasm = await db.trasmissioni.find_one({"id": trasm_id}, {"_id": 0})
+    if trasm:
+        await create_notifica(trasm["user_id"], "Trasmissione aggiornata", f"La tua trasmissione '{trasm['oggetto']}' è stata aggiornata a: {stato}", "document")
+    return clean_doc(trasm)
+
+# ================ ESTRATTO CONTO ROUTES ================
+
+@api_router.get("/estratto-conto")
+async def get_estratto_conto(user=Depends(get_current_user)):
+    assocs = await db.user_condomini.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+    result = []
+    for a in assocs:
+        ec = await db.estratti_conto.find_one({"user_id": user["id"], "condominio_id": a["condominio_id"]}, {"_id": 0})
+        cond = await db.condomini.find_one({"id": a["condominio_id"]}, {"_id": 0})
+        if ec:
+            ec["condominio_nome"] = cond["nome"] if cond else "N/A"
+            result.append(ec)
+    return result
+
+@api_router.post("/admin/estratto-conto")
+async def admin_upsert_estratto(data: EstrattoContoCreate, user=Depends(get_admin_user)):
+    existing = await db.estratti_conto.find_one({"user_id": data.user_id, "condominio_id": data.condominio_id})
+    ec_data = {
+        "user_id": data.user_id, "condominio_id": data.condominio_id,
+        "periodo": data.periodo, "quote_versate": data.quote_versate,
+        "quote_da_versare": data.quote_da_versare, "scadenza": data.scadenza,
+        "saldo": data.saldo, "note": data.note, "updated_at": now_iso()
+    }
+    if existing:
+        await db.estratti_conto.update_one({"user_id": data.user_id, "condominio_id": data.condominio_id}, {"$set": ec_data})
+        await create_notifica(data.user_id, "Estratto conto aggiornato", "Il tuo estratto conto è stato aggiornato dallo studio.", "finance")
+    else:
+        ec_data["id"] = str(uuid.uuid4())
+        ec_data["created_at"] = now_iso()
+        await db.estratti_conto.insert_one(ec_data)
+        await create_notifica(data.user_id, "Nuovo estratto conto", "Lo studio ha pubblicato il tuo estratto conto.", "finance")
+    return {"message": "Estratto conto salvato"}
+
+@api_router.get("/admin/estratti-conto")
+async def admin_estratti(user=Depends(get_admin_user)):
+    ecs = await db.estratti_conto.find({}, {"_id": 0}).to_list(1000)
+    for ec in ecs:
+        u = await db.users.find_one({"id": ec["user_id"]}, {"_id": 0, "password_hash": 0})
+        c = await db.condomini.find_one({"id": ec["condominio_id"]}, {"_id": 0})
+        ec["user_nome"] = f"{u['nome']} {u['cognome']}" if u else "N/A"
+        ec["condominio_nome"] = c["nome"] if c else "N/A"
+    return ecs
+
+# ================ CONFIG ROUTES ================
+
+@api_router.get("/admin/config")
+async def get_config(user=Depends(get_admin_user)):
+    config = await db.app_config.find_one({"key": "main"}, {"_id": 0})
+    if not config:
+        config = {"key": "main", "google_maps_api_key": "", "firebase_key": "", "studio_telefono": "+39 089 123456", "studio_email": "info@tardugnobonifacio.it", "studio_pec": ""}
+        await db.app_config.insert_one(config)
+    return {k: v for k, v in config.items() if k != "key"}
+
+@api_router.put("/admin/config")
+async def update_config(data: ConfigUpdate, user=Depends(get_admin_user)):
+    upd = data.dict()
+    await db.app_config.update_one({"key": "main"}, {"$set": upd}, upsert=True)
+    return {"message": "Configurazione aggiornata"}
+
+@api_router.get("/config/public")
+async def get_public_config():
+    config = await db.app_config.find_one({"key": "main"}, {"_id": 0})
+    if not config:
+        return {"google_maps_api_key": "", "studio_telefono": "+39 089 123456", "studio_email": "info@tardugnobonifacio.it", "studio_pec": ""}
+    return {"google_maps_api_key": config.get("google_maps_api_key", ""), "studio_telefono": config.get("studio_telefono", ""), "studio_email": config.get("studio_email", ""), "studio_pec": config.get("studio_pec", "")}
+
+# ================ EXPORT CSV ================
+
+@api_router.get("/admin/export/segnalazioni")
+async def export_segnalazioni(user=Depends(get_admin_user)):
+    segs = await db.segnalazioni.find({}, {"_id": 0, "immagini": 0}).sort("created_at", -1).to_list(10000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Protocollo", "Data", "Utente", "Email", "Condominio", "Tipologia", "Descrizione", "Urgenza", "Stato", "Note Admin"])
+    for s in segs:
+        c = await db.condomini.find_one({"id": s.get("condominio_id")}, {"_id": 0})
+        writer.writerow([s.get("protocollo",""), s.get("created_at","")[:10], s.get("user_nome",""), s.get("user_email",""), c["nome"] if c else "", s.get("tipologia",""), s.get("descrizione",""), s.get("urgenza",""), s.get("stato",""), s.get("note_admin","")])
+    output.seek(0)
+    return StreamingResponse(io.BytesIO(output.getvalue().encode("utf-8-sig")), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=segnalazioni.csv"})
+
+@api_router.get("/admin/export/appuntamenti")
+async def export_appuntamenti(user=Depends(get_admin_user)):
+    apps = await db.appuntamenti.find({}, {"_id": 0}).sort("data_richiesta", -1).to_list(10000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Data Richiesta", "Utente", "Email", "Motivo", "Fascia Oraria", "Stato", "Data Confermata", "Note"])
+    for a in apps:
+        writer.writerow([a.get("data_richiesta",""), a.get("user_nome",""), a.get("user_email",""), a.get("motivo",""), a.get("fascia_oraria",""), a.get("stato",""), a.get("data_confermata",""), a.get("note","")])
+    output.seek(0)
+    return StreamingResponse(io.BytesIO(output.getvalue().encode("utf-8-sig")), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=appuntamenti.csv"})
+
+@api_router.get("/admin/export/utenti")
+async def export_utenti(user=Depends(get_admin_user)):
+    utenti = await db.users.find({"ruolo": "condomino"}, {"_id": 0, "password_hash": 0}).to_list(10000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Nome", "Cognome", "Email", "Telefono", "Indirizzo", "Codice Fiscale", "Data Registrazione", "Condomini"])
+    for u in utenti:
+        assocs = await db.user_condomini.find({"user_id": u["id"]}, {"_id": 0}).to_list(100)
+        conds = []
+        for a in assocs:
+            c = await db.condomini.find_one({"id": a["condominio_id"]}, {"_id": 0})
+            if c: conds.append(c["nome"])
+        writer.writerow([u.get("nome",""), u.get("cognome",""), u.get("email",""), u.get("telefono",""), u.get("indirizzo",""), u.get("codice_fiscale",""), u.get("created_at","")[:10], "; ".join(conds)])
+    output.seek(0)
+    return StreamingResponse(io.BytesIO(output.getvalue().encode("utf-8-sig")), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=utenti.csv"})
 
 # ================ SEED ================
 
