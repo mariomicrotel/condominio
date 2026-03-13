@@ -9,7 +9,7 @@ import { Colors } from '../src/constants/theme';
 export default function Register() {
   const router = useRouter();
   const { register } = useAuth();
-  const [form, setForm] = useState({ nome: '', cognome: '', email: '', password: '', telefono: '', codice_invito: '' });
+  const [form, setForm] = useState({ nome: '', cognome: '', email: '', password: '', telefono: '', indirizzo: '', codice_fiscale: '' });
   const [loading, setLoading] = useState(false);
 
   const update = (key: string, val: string) => setForm(p => ({ ...p, [key]: val }));
@@ -43,11 +43,17 @@ export default function Register() {
           </TouchableOpacity>
 
           <Text style={s.title}>Registrazione</Text>
-          <Text style={s.subtitle}>Crea il tuo account per accedere ai servizi dello studio</Text>
+          <Text style={s.subtitle}>Crea il tuo account. Lo studio ti abiliterà associandoti al tuo condominio.</Text>
+
+          {/* Info box */}
+          <View style={s.infoBox}>
+            <Ionicons name="information-circle" size={20} color="#0369A1" />
+            <Text style={s.infoText}>Dopo la registrazione, lo studio verificherà i tuoi dati e ti assocerà al condominio di appartenenza. Riceverai accesso completo alle funzionalità.</Text>
+          </View>
 
           <View style={s.form}>
             <View style={s.row}>
-              <View style={[s.inputWrap, { flex: 1, marginRight: 8 }]}>  
+              <View style={[s.inputWrap, { flex: 1, marginRight: 8 }]}>
                 <TextInput testID="register-nome-input" style={s.input} placeholder="Nome *" placeholderTextColor={Colors.textMuted} value={form.nome} onChangeText={v => update('nome', v)} />
               </View>
               <View style={[s.inputWrap, { flex: 1, marginLeft: 8 }]}>
@@ -62,7 +68,7 @@ export default function Register() {
 
             <View style={s.inputWrap}>
               <Ionicons name="lock-closed-outline" size={20} color={Colors.textMuted} style={s.icon} />
-              <TextInput testID="register-password-input" style={s.input} placeholder="Password *" placeholderTextColor={Colors.textMuted} value={form.password} onChangeText={v => update('password', v)} secureTextEntry />
+              <TextInput testID="register-password-input" style={s.input} placeholder="Password * (min. 6 caratteri)" placeholderTextColor={Colors.textMuted} value={form.password} onChangeText={v => update('password', v)} secureTextEntry />
             </View>
 
             <View style={s.inputWrap}>
@@ -70,17 +76,15 @@ export default function Register() {
               <TextInput testID="register-telefono-input" style={s.input} placeholder="Telefono" placeholderTextColor={Colors.textMuted} value={form.telefono} onChangeText={v => update('telefono', v)} keyboardType="phone-pad" />
             </View>
 
-            <View style={s.divider}>
-              <View style={s.divLine} />
-              <Text style={s.divText}>Codice Invito</Text>
-              <View style={s.divLine} />
+            <View style={s.inputWrap}>
+              <Ionicons name="location-outline" size={20} color={Colors.textMuted} style={s.icon} />
+              <TextInput testID="register-indirizzo-input" style={s.input} placeholder="Indirizzo" placeholderTextColor={Colors.textMuted} value={form.indirizzo} onChangeText={v => update('indirizzo', v)} />
             </View>
 
             <View style={s.inputWrap}>
-              <Ionicons name="key-outline" size={20} color={Colors.textMuted} style={s.icon} />
-              <TextInput testID="register-codice-input" style={s.input} placeholder="Codice invito (opzionale)" placeholderTextColor={Colors.textMuted} value={form.codice_invito} onChangeText={v => update('codice_invito', v)} autoCapitalize="characters" />
+              <Ionicons name="card-outline" size={20} color={Colors.textMuted} style={s.icon} />
+              <TextInput testID="register-cf-input" style={s.input} placeholder="Codice Fiscale" placeholderTextColor={Colors.textMuted} value={form.codice_fiscale} onChangeText={v => update('codice_fiscale', v)} autoCapitalize="characters" />
             </View>
-            <Text style={s.hint}>Se hai ricevuto un codice invito dallo studio, inseriscilo per associarti al tuo condominio.</Text>
 
             <TouchableOpacity testID="register-submit-btn" style={s.submitBtn} onPress={handleRegister} disabled={loading} activeOpacity={0.8}>
               {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={s.submitText}>Registrati</Text>}
@@ -101,16 +105,14 @@ const s = StyleSheet.create({
   scroll: { flexGrow: 1, padding: 24 },
   backBtn: { width: 40, height: 40, justifyContent: 'center' },
   title: { fontSize: 28, fontWeight: '700', color: Colors.navy, marginTop: 8 },
-  subtitle: { fontSize: 14, color: Colors.textSec, marginTop: 6, marginBottom: 24 },
+  subtitle: { fontSize: 14, color: Colors.textSec, marginTop: 6, marginBottom: 16 },
+  infoBox: { flexDirection: 'row', backgroundColor: '#E0F2FE', borderRadius: 10, padding: 12, marginBottom: 20, borderLeftWidth: 3, borderLeftColor: '#0284C7' },
+  infoText: { fontSize: 13, color: '#0369A1', marginLeft: 10, flex: 1, lineHeight: 19 },
   form: { backgroundColor: Colors.white, borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
   row: { flexDirection: 'row' },
   inputWrap: { flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, paddingHorizontal: 14, marginBottom: 14 },
   icon: { marginRight: 10 },
   input: { flex: 1, fontSize: 16, color: Colors.textMain },
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 12 },
-  divLine: { flex: 1, height: 1, backgroundColor: Colors.border },
-  divText: { fontSize: 12, color: Colors.textMuted, marginHorizontal: 12 },
-  hint: { fontSize: 12, color: Colors.textMuted, marginBottom: 16, lineHeight: 18 },
   submitBtn: { height: 56, borderRadius: 12, backgroundColor: Colors.navy, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   submitText: { fontSize: 16, fontWeight: '600', color: Colors.white },
   loginBtn: { marginTop: 20, alignItems: 'center' },

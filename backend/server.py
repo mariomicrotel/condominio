@@ -87,6 +87,12 @@ class CodiceInvitoCreate(BaseModel):
     unita_immobiliare: str = ""
     qualita: str = "Proprietario"
 
+class AssociaUtenteCreate(BaseModel):
+    user_id: str
+    condominio_id: str
+    unita_immobiliare: str = ""
+    qualita: str = "Proprietario"
+
 class AdminSegnalazioneUpdate(BaseModel):
     stato: Optional[str] = None
     note_admin: Optional[str] = None
@@ -157,19 +163,7 @@ async def register(data: UserCreate):
         "indirizzo": data.indirizzo, "codice_fiscale": data.codice_fiscale,
         "ruolo": "condomino", "created_at": now_iso()
     }
-
-    if data.codice_invito:
-        invite = await db.codici_invito.find_one({"codice": data.codice_invito, "usato": False})
-        if not invite:
-            raise HTTPException(400, "Codice invito non valido o già utilizzato")
-        await db.users.insert_one(user)
-        await db.user_condomini.insert_one({
-            "id": str(uuid.uuid4()), "user_id": user_id, "condominio_id": invite["condominio_id"],
-            "unita_immobiliare": invite.get("unita_immobiliare", ""), "qualita": invite.get("qualita", "Proprietario")
-        })
-        await db.codici_invito.update_one({"codice": data.codice_invito}, {"$set": {"usato": True, "user_id": user_id}})
-    else:
-        await db.users.insert_one(user)
+    await db.users.insert_one(user)
 
     token = create_token(user_id, "condomino")
     return {"token": token, "user": {k: v for k, v in user.items() if k != "password_hash" and k != "_id"}}
@@ -399,16 +393,48 @@ async def admin_delete_avviso(avviso_id: str, user=Depends(get_admin_user)):
 
 @api_router.get("/admin/utenti")
 async def admin_utenti(user=Depends(get_admin_user)):
-    utenti = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    utenti = await db.users.find({"ruolo": "condomino"}, {"_id": 0, "password_hash": 0}).to_list(1000)
     for u in utenti:
         assocs = await db.user_condomini.find({"user_id": u["id"]}, {"_id": 0}).to_list(100)
-        names = []
+        u["associazioni"] = []
         for a in assocs:
             c = await db.condomini.find_one({"id": a["condominio_id"]}, {"_id": 0})
-            if c:
-                names.append(c["nome"])
-        u["condomini_nomi"] = names
+            u["associazioni"].append({
+                "assoc_id": a["id"],
+                "condominio_id": a["condominio_id"],
+                "condominio_nome": c["nome"] if c else "N/A",
+                "unita_immobiliare": a.get("unita_immobiliare", ""),
+                "qualita": a.get("qualita", "")
+            })
+        u["condomini_nomi"] = [a["condominio_nome"] for a in u["associazioni"]]
+        u["abilitato"] = len(u["associazioni"]) > 0
     return utenti
+
+@api_router.post("/admin/associa-utente")
+async def admin_associa_utente(data: AssociaUtenteCreate, user=Depends(get_admin_user)):
+    u = await db.users.find_one({"id": data.user_id}, {"_id": 0})
+    if not u:
+        raise HTTPException(404, "Utente non trovato")
+    c = await db.condomini.find_one({"id": data.condominio_id}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Condominio non trovato")
+    existing = await db.user_condomini.find_one({"user_id": data.user_id, "condominio_id": data.condominio_id})
+    if existing:
+        raise HTTPException(400, "Utente già associato a questo condominio")
+    assoc = {
+        "id": str(uuid.uuid4()), "user_id": data.user_id, "condominio_id": data.condominio_id,
+        "unita_immobiliare": data.unita_immobiliare, "qualita": data.qualita
+    }
+    await db.user_condomini.insert_one(assoc)
+    return {"message": "Utente associato con successo", "assoc_id": assoc["id"],
+            "condominio_nome": c["nome"], "unita_immobiliare": data.unita_immobiliare, "qualita": data.qualita}
+
+@api_router.delete("/admin/associazione/{assoc_id}")
+async def admin_disassocia(assoc_id: str, user=Depends(get_admin_user)):
+    result = await db.user_condomini.delete_one({"id": assoc_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Associazione non trovata")
+    return {"message": "Associazione rimossa"}
 
 @api_router.post("/admin/codici-invito")
 async def admin_create_codice(data: CodiceInvitoCreate, user=Depends(get_admin_user)):

@@ -10,7 +10,7 @@ class TestSeedAndAuth:
         assert response.status_code == 200
         data = response.json()
         assert "message" in data
-        assert "admin" in data or "admin_email" in data.get("message", "")
+        assert "admin_email" in data or "admin" in data
         print(f"✓ Seed endpoint working: {data.get('message', '')}")
 
     def test_login_condomino_success(self, api_client, base_url):

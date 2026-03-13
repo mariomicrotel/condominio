@@ -71,6 +71,17 @@ export default function Home() {
           <Text style={s.welcomeSub}>Come possiamo aiutarti oggi?</Text>
         </View>
 
+        {/* Avviso se non ancora abilitato */}
+        {(!user?.condomini || user.condomini.length === 0) && user?.ruolo !== 'admin' && (
+          <View style={s.pendingBox}>
+            <Ionicons name="time-outline" size={22} color="#D97706" />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={s.pendingTitle}>Account in attesa di abilitazione</Text>
+              <Text style={s.pendingText}>Lo studio sta verificando i tuoi dati e ti assocerà al condominio di appartenenza. Alcune funzionalità non saranno disponibili fino all'abilitazione.</Text>
+            </View>
+          </View>
+        )}
+
         {/* Tile Grid */}
         <View style={s.grid}>
           {TILES.map((tile, i) => (
@@ -142,6 +153,9 @@ const s = StyleSheet.create({
   welcome: { marginBottom: 24 },
   welcomeText: { fontSize: 24, fontWeight: '700', color: Colors.navy },
   welcomeSub: { fontSize: 15, color: Colors.textSec, marginTop: 4 },
+  pendingBox: { flexDirection: 'row', backgroundColor: '#FEF3C7', borderRadius: 12, padding: 14, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: '#D97706' },
+  pendingTitle: { fontSize: 15, fontWeight: '600', color: '#92400E', marginBottom: 4 },
+  pendingText: { fontSize: 13, color: '#92400E', lineHeight: 19 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
   tile: { width: '50%', padding: 6 },
   tileIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 10, alignSelf: 'center' },

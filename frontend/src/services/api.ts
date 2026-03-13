@@ -54,4 +54,6 @@ export const api = {
   updateAdminRichiesta: (token: string, id: string, data: any) => apiCall(`/admin/richieste-documenti/${id}`, { method: 'PUT', token, body: data }),
   createCodiceInvito: (token: string, data: any) => apiCall('/admin/codici-invito', { method: 'POST', token, body: data }),
   getCodiciInvito: (token: string) => apiCall('/admin/codici-invito', { token }),
+  associaUtente: (token: string, data: any) => apiCall('/admin/associa-utente', { method: 'POST', token, body: data }),
+  disassociaUtente: (token: string, assocId: string) => apiCall(`/admin/associazione/${assocId}`, { method: 'DELETE', token }),
 };
