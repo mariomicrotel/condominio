@@ -438,6 +438,7 @@ Login (portale dedicato) → Dashboard Fornitore
 | `condomino` | Residente — accede alla dashboard con i servizi |
 | `admin` | Amministratore — accede al pannello di gestione completo |
 | `fornitore` | **NUOVO**: Fornitore esterno — accede al portale per gestire interventi assegnati |
+| `collaboratore` | **NUOVO**: Collaboratore dello studio — esegue sopralluoghi e compila checklist |
 
 ### Credenziali Demo (dopo `/api/seed`)
 
@@ -446,6 +447,7 @@ Login (portale dedicato) → Dashboard Fornitore
 | Admin | `admin@tardugno.it` | `admin123` |
 | Condomino | `mario.rossi@email.it` | `password123` |
 | Fornitore | Creato dall'admin | (definita dall'admin) |
+| Collaboratore | Creato dall'admin | (definita dall'admin) |
 
 ---
 
