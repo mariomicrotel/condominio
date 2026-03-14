@@ -366,11 +366,22 @@ Login → Pannello Admin (con tab scorrevoli)
               ├── Dashboard (statistiche + azioni rapide)
               ├── Condomini (CRUD)
               ├── Utenti (associa/disassocia)
-              ├── Guasti (gestione stati)
+              ├── Guasti (gestione stati + CREA/MODIFICA + assegna fornitore)
               ├── Appuntamenti (conferma/annulla)
               ├── Avvisi (pubblica/elimina)
               ├── Documenti (trasmissioni ricevute)
+              ├── Fornitori (CRUD, gestione anagrafica)
               └── Impostazioni (config, API keys, export, estratti conto)
+```
+
+### Flusso Fornitore (NUOVO)
+```
+Login (portale dedicato) → Dashboard Fornitore
+              ├── Dashboard (statistiche interventi)
+              ├── Lista Interventi (con filtri stato)
+              ├── Dettaglio Intervento (info guasto + condominio)
+              ├── Compila Rapportino (data, descrizione, foto)
+              └── Profilo (dati aziendali)
 ```
 
 ---
