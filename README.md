@@ -173,7 +173,10 @@ L'app consente ai **condomini** (residenti) di interagire con lo studio e ai **a
 │   │   ├── notifiche.tsx              # Centro notifiche in-app
 │   │   ├── profilo.tsx                # Profilo utente
 │   │   ├── contatti.tsx               # Contatti dello studio
-│   │   └── chi-siamo.tsx              # Chi siamo
+│   │   ├── chi-siamo.tsx              # Chi siamo
+│   │   ├── fornitore-dashboard.tsx    # **NUOVO**: Dashboard fornitore
+│   │   ├── fornitore-intervento-detail.tsx # **NUOVO**: Dettaglio intervento
+│   │   └── fornitore-profilo.tsx      # **NUOVO**: Profilo fornitore
 │   │
 │   ├── src/
 │   │   ├── components/
