@@ -608,10 +608,18 @@ export default function Admin() {
         }
       }
 
+      // Upload voice note if present
+      let voiceNoteId: string | undefined;
+      if (anomaliaVoiceNote) {
+        const uploaded = await api.uploadFile(token!, anomaliaVoiceNote.uri, anomaliaVoiceNote.filename, 'audio/m4a');
+        voiceNoteId = uploaded.id;
+      }
+
       await api.createAnomalia(token!, showAnomaliaModal.sopralluogo.id, showAnomaliaModal.item.id, {
         descrizione: anomaliaForm.descrizione,
         gravita: anomaliaForm.gravita,
         foto_ids: fotoIds,
+        nota_vocale_id: voiceNoteId,
         apri_segnalazione: anomaliaForm.apri_segnalazione,
         fornitore_id: anomaliaForm.fornitore_id || undefined,
         tipologia_intervento: anomaliaForm.tipologia_intervento || undefined,
@@ -620,6 +628,7 @@ export default function Admin() {
       });
 
       setShowAnomaliaModal(null);
+      setAnomaliaVoiceNote(null);
       // Refresh sopralluogo
       const full = await api.getSopralluogo(token!, showAnomaliaModal.sopralluogo.id);
       setShowSopralluogoDetail(full);
