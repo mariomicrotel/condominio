@@ -95,6 +95,7 @@ export default function Admin() {
   const [sopralluogoForm, setSopralluogoForm] = useState({ condominio_id: '', data: '', ora_inizio: '', motivo: 'Controllo periodico', note_generali: '', collaboratore_id: '' });
   const [showNewCollaboratore, setShowNewCollaboratore] = useState(false);
   const [collabForm, setCollabForm] = useState({ nome: '', cognome: '', email: '', password: '', telefono: '', qualifica: '', stato: 'Attivo' });
+  const [utentiFilterCondo, setUtentiFilterCondo] = useState<string>(''); // Filter users by condominio
   const [showAnomaliaModal, setShowAnomaliaModal] = useState<any>(null); // { sopralluogo, item }
   const [anomaliaForm, setAnomaliaForm] = useState({ descrizione: '', gravita: 'Moderata', foto_ids: [] as string[], apri_segnalazione: false, fornitore_id: '', tipologia_intervento: '', urgenza_segnalazione: '', note_fornitore: '' });
   const [anomaliaPhotos, setAnomaliaPhotos] = useState<MediaFile[]>([]);
