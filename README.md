@@ -425,14 +425,21 @@ Login (portale dedicato) → Dashboard Fornitore
 ### Flusso Collaboratore (NUOVO)
 ```
 Login (portale collaboratore) → App Sopralluoghi
-              ├── Lista Sopralluoghi (assegnati)
-              ├── Nuovo Sopralluogo (seleziona condominio, data, motivo)
+              ├── Lista Sopralluoghi (assegnati o creati)
+              ├── Nuovo Sopralluogo (seleziona condominio, data, ora, motivo)
               ├── Checklist Interattiva (25 voci con semaforo)
-              │       ├── OK 🟢
-              │       ├── Anomalia 🟡 → Documenta (descrizione, foto)
+              │       ├── 🟢 OK → salva immediatamente
+              │       ├── 🟡 Anomalia → apre modale documentazione
+              │       │       ├── Descrizione testuale
+              │       │       ├── Gravità (Lieve/Moderata/Grave/Urgente)
+              │       │       ├── Foto (fino a 5)
+              │       │       ├── Note vocali MULTIPLE (con riproduzione)
               │       │       └── [Opzionale] Apri Segnalazione + Assegna Fornitore
-              │       └── Non controllato ⚪
-              └── Chiudi Sopralluogo (valutazione, note finali)
+              │       └── ⚪ Non controllato → salva immediatamente
+              └── Chiudi Sopralluogo
+                      ├── Valutazione (Buono/Discreto/Sufficiente/Critico)
+                      ├── Note finali
+                      └── Conferma obbligatoria (previene chiusure accidentali)
 ```
 
 ---
