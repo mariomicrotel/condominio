@@ -1866,14 +1866,32 @@ export default function Admin() {
               )}
             </View>
             
-            {/* Voice Note */}
-            <VoiceRecorder
-              label="Nota Vocale"
-              onRecordingComplete={(uri, filename, duration) => setAnomaliaVoiceNote({ uri, filename, duration })}
-              existingRecordingUri={anomaliaVoiceNote?.uri}
-              existingRecordingDuration={anomaliaVoiceNote?.duration}
-              onDeleteRecording={() => setAnomaliaVoiceNote(null)}
-            />
+            {/* Voice Notes - Multiple */}
+            <Text style={[s.configLabel, { marginTop: 12 }]}>Note Vocali ({anomaliaVoiceNotes.length})</Text>
+            <View style={{ marginTop: 8 }}>
+              {/* Existing voice notes */}
+              {anomaliaVoiceNotes.map((vn, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 8, padding: 10, marginBottom: 8, gap: 10 }}>
+                  <Ionicons name="mic" size={20} color="#DC2626" />
+                  <Text style={{ flex: 1, fontSize: 13, color: Colors.textSec }}>
+                    Nota {idx + 1} • {Math.floor(vn.duration / 60)}:{(vn.duration % 60).toString().padStart(2, '0')}
+                  </Text>
+                  <TouchableOpacity onPress={() => setAnomaliaVoiceNotes(prev => prev.filter((_, i) => i !== idx))}>
+                    <Ionicons name="close-circle" size={22} color={Colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {/* Add new voice note */}
+              <VoiceRecorder
+                label=""
+                compact
+                onRecordingComplete={(uri, filename, duration) => {
+                  setAnomaliaVoiceNotes(prev => [...prev, { uri, filename, duration }]);
+                }}
+                onDeleteRecording={() => {}}
+              />
+              <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 4 }}>Puoi aggiungere più note vocali</Text>
+            </View>
             
             {/* Create segnalazione option */}
             <View style={{ marginTop: 20, padding: 12, backgroundColor: '#FEF3C7', borderRadius: 10 }}>
