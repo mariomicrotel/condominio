@@ -195,7 +195,8 @@ L'app consente ai **condomini** (residenti) di interagire con lo studio e ai **a
 │   │
 │   ├── src/
 │   │   ├── components/
-│   │   │   └── SharedComponents.tsx   # Componenti UI riutilizzabili
+│   │   │   ├── SharedComponents.tsx   # Componenti UI riutilizzabili
+│   │   │   └── VoiceRecorder.tsx      # **NUOVO**: Registrazione e riproduzione note vocali
 │   │   ├── constants/
 │   │   │   └── theme.ts              # Colori e tema dell'app
 │   │   ├── context/
