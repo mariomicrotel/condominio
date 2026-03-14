@@ -302,6 +302,202 @@ export default function Admin() {
     ]);
   };
 
+  // ========== SEGNALAZIONE CREATE/EDIT FUNCTIONS ==========
+
+  const resetSegForm = () => {
+    setSegForm({ condominio_id: '', tipologia: '', descrizione: '', urgenza: 'Media', note_admin: '' });
+    setSegMediaFiles([]);
+    setIsEditingSeg(false);
+    setEditingSegId(null);
+  };
+
+  const openNewSegModal = () => {
+    resetSegForm();
+    setShowNewSegModal(true);
+  };
+
+  const openEditSegModal = (seg: any) => {
+    setIsEditingSeg(true);
+    setEditingSegId(seg.id);
+    setSegForm({
+      condominio_id: seg.condominio_id || '',
+      tipologia: seg.tipologia || '',
+      descrizione: seg.descrizione || '',
+      urgenza: seg.urgenza || 'Media',
+      note_admin: seg.note_admin || '',
+    });
+    // Load existing attachments as "already uploaded" files
+    if (seg.allegati_dettagli && seg.allegati_dettagli.length > 0) {
+      const existingFiles: MediaFile[] = seg.allegati_dettagli.map((f: any) => ({
+        uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}${f.url}`,
+        filename: f.filename,
+        mimeType: f.content_type,
+        size: f.size,
+        type: f.content_type?.startsWith('image/') ? 'image' : f.content_type?.startsWith('video/') ? 'video' : 'pdf',
+        uploadedId: f.id,
+      }));
+      setSegMediaFiles(existingFiles);
+    } else {
+      setSegMediaFiles([]);
+    }
+    setModalSeg(null);
+    setShowNewSegModal(true);
+  };
+
+  // Media pickers for segnalazione
+  const pickSegImage = async (useCamera: boolean) => {
+    if (segMediaFiles.length >= 10) {
+      Alert.alert('Limite raggiunto', 'Puoi allegare massimo 10 file');
+      return;
+    }
+
+    const permission = useCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert('Permesso negato', 'Concedi i permessi per accedere alla fotocamera/galleria');
+      return;
+    }
+
+    const result = useCamera
+      ? await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: false, mediaTypes: ['images', 'videos'] })
+      : await ImagePicker.launchImageLibraryAsync({ quality: 0.8, allowsMultipleSelection: true, selectionLimit: 10 - segMediaFiles.length, mediaTypes: ['images', 'videos'] });
+
+    if (result.canceled) return;
+
+    const newFiles: MediaFile[] = result.assets.map(asset => ({
+      uri: asset.uri,
+      filename: asset.fileName || `media_${Date.now()}.${asset.type === 'video' ? 'mp4' : 'jpg'}`,
+      mimeType: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+      size: asset.fileSize,
+      type: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video',
+    }));
+
+    setSegMediaFiles(prev => [...prev, ...newFiles].slice(0, 10));
+  };
+
+  const pickSegDocument = async () => {
+    if (segMediaFiles.length >= 10) {
+      Alert.alert('Limite raggiunto', 'Puoi allegare massimo 10 file');
+      return;
+    }
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const newFiles: MediaFile[] = result.assets.map(asset => ({
+        uri: asset.uri,
+        filename: asset.name || `documento_${Date.now()}.pdf`,
+        mimeType: asset.mimeType || 'application/pdf',
+        size: asset.size,
+        type: 'pdf' as const,
+      }));
+
+      setSegMediaFiles(prev => [...prev, ...newFiles].slice(0, 10));
+    } catch (e) {
+      Alert.alert('Errore', 'Impossibile selezionare il documento');
+    }
+  };
+
+  const removeSegFile = (index: number) => {
+    setSegMediaFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getFileIcon = (type: string): string => {
+    switch (type) {
+      case 'image': return 'image';
+      case 'video': return 'videocam';
+      case 'pdf': return 'document-text';
+      default: return 'attach';
+    }
+  };
+
+  const getFileColor = (type: string): string => {
+    switch (type) {
+      case 'image': return '#3B82F6';
+      case 'video': return '#8B5CF6';
+      case 'pdf': return '#EF4444';
+      default: return Colors.textMuted;
+    }
+  };
+
+  const handleSaveSegnalazione = async () => {
+    if (!segForm.condominio_id || !segForm.tipologia || !segForm.descrizione.trim()) {
+      Alert.alert('Attenzione', 'Compila tutti i campi obbligatori (Condominio, Tipologia, Descrizione)');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Upload new files
+      const allegatiIds: string[] = [];
+      const filesToUpload = segMediaFiles.filter(f => !f.uploadedId); // only new files
+      const existingIds = segMediaFiles.filter(f => f.uploadedId).map(f => f.uploadedId!);
+      
+      if (filesToUpload.length > 0) {
+        setSegUploadProgress(`Caricamento file 0/${filesToUpload.length}...`);
+        for (let i = 0; i < filesToUpload.length; i++) {
+          setSegUploadProgress(`Caricamento file ${i + 1}/${filesToUpload.length}...`);
+          try {
+            const uploaded = await api.uploadFile(token!, filesToUpload[i].uri, filesToUpload[i].filename, filesToUpload[i].mimeType);
+            allegatiIds.push(uploaded.id);
+          } catch (e: any) {
+            console.warn(`Failed to upload ${filesToUpload[i].filename}:`, e);
+          }
+        }
+        setSegUploadProgress('');
+      }
+
+      const allAllegati = [...existingIds, ...allegatiIds];
+
+      if (isEditingSeg && editingSegId) {
+        // Update existing segnalazione
+        await api.updateAdminSeg(token!, editingSegId, {
+          tipologia: segForm.tipologia,
+          descrizione: segForm.descrizione,
+          urgenza: segForm.urgenza,
+          note_admin: segForm.note_admin,
+          allegati: allAllegati,
+        });
+        Alert.alert('Salvato', 'Segnalazione aggiornata con successo');
+      } else {
+        // Create new segnalazione
+        const result = await api.createAdminSegnalazione(token!, {
+          condominio_id: segForm.condominio_id,
+          tipologia: segForm.tipologia,
+          descrizione: segForm.descrizione,
+          urgenza: segForm.urgenza,
+          note_admin: segForm.note_admin,
+          allegati: allAllegati,
+        });
+        Alert.alert('Creata', `Segnalazione creata con successo.\nProtocollo: ${result.protocollo}`);
+      }
+
+      setShowNewSegModal(false);
+      resetSegForm();
+      loadAll();
+    } catch (e: any) {
+      Alert.alert('Errore', e.message);
+    } finally {
+      setLoading(false);
+      setSegUploadProgress('');
+    }
+  };
+
   const handleLogout = () => {
     Alert.alert('Esci', 'Vuoi uscire?', [
       { text: 'Annulla' },
