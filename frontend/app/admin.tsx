@@ -665,26 +665,32 @@ export default function Admin() {
 
         {/* ====== SEGNALAZIONI ====== */}
         {tab === 'segnalazioni' && (
-          <FlatList data={segnalazioni} keyExtractor={i => i.id} contentContainerStyle={s.content}
-            ListEmptyComponent={<Text style={s.emptyText}>Nessuna segnalazione</Text>}
-            renderItem={({ item }) => (
-              <TouchableOpacity testID={`admin-seg-${item.id}`} style={s.listCard} onPress={() => loadSegDetail(item.id)}>
-                <View style={s.listRow}>
-                  <View style={[s.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="warning" size={18} color="#D97706" />
+          <View style={{ flex: 1 }}>
+            <TouchableOpacity testID="admin-new-seg-btn" style={[s.addBtn, { backgroundColor: '#D97706' }]} onPress={openNewSegModal}>
+              <Ionicons name="add" size={22} color={Colors.white} />
+              <Text style={s.addBtnText}>Nuova Segnalazione</Text>
+            </TouchableOpacity>
+            <FlatList data={segnalazioni} keyExtractor={i => i.id} contentContainerStyle={s.content}
+              ListEmptyComponent={<Text style={s.emptyText}>Nessuna segnalazione</Text>}
+              renderItem={({ item }) => (
+                <TouchableOpacity testID={`admin-seg-${item.id}`} style={s.listCard} onPress={() => loadSegDetail(item.id)}>
+                  <View style={s.listRow}>
+                    <View style={[s.iconCircle, { backgroundColor: '#FEF3C7' }]}>
+                      <Ionicons name="warning" size={18} color="#D97706" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.listTitle}>{item.tipologia}</Text>
+                      <Text style={s.listSub2}>{item.user_nome} • {item.condominio_nome}</Text>
+                      <Text style={s.listMeta}>
+                        {new Date(item.created_at).toLocaleDateString('it-IT')} • Urgenza: {item.urgenza}
+                        {(item.allegati?.length > 0) ? ` • ${item.allegati.length} allegati` : ''}
+                      </Text>
+                    </View>
+                    <StatusBadge status={item.stato} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.listTitle}>{item.tipologia}</Text>
-                    <Text style={s.listSub2}>{item.user_nome} • {item.condominio_nome}</Text>
-                    <Text style={s.listMeta}>
-                      {new Date(item.created_at).toLocaleDateString('it-IT')} • Urgenza: {item.urgenza}
-                      {(item.allegati?.length > 0) ? ` • ${item.allegati.length} allegati` : ''}
-                    </Text>
-                  </View>
-                  <StatusBadge status={item.stato} />
-                </View>
-              </TouchableOpacity>
-            )} />
+                </TouchableOpacity>
+              )} />
+          </View>
         )}
 
         {/* ====== APPUNTAMENTI ====== */}
