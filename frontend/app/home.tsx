@@ -1,8 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/context/AuthContext';
 import { api } from '../src/services/api';
@@ -35,24 +34,31 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  // Notification count - refresh on every focus (when returning from notifiche screen)
-  useFocusEffect(
-    useCallback(() => {
-      const checkNotifs = async () => {
-        try {
-          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-          const stored = await AsyncStorage.getItem('token');
-          if (stored) {
-            const { count } = await api.getNotificheCount(stored);
-            setUnreadCount(count);
-          }
-        } catch {}
-      };
-      checkNotifs();
-      const interval = setInterval(checkNotifs, 30000);
-      return () => clearInterval(interval);
-    }, [])
-  );
+  // Notification count - refresh on path change (returning from notifiche screen) and periodic
+  const pathname = usePathname();
+  const appState = useRef(AppState.currentState);
+
+  useEffect(() => {
+    const checkNotifs = async () => {
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const stored = await AsyncStorage.getItem('token');
+        if (stored) {
+          const { count } = await api.getNotificheCount(stored);
+          setUnreadCount(count);
+        }
+      } catch {}
+    };
+    checkNotifs();
+    const interval = setInterval(checkNotifs, 30000);
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        checkNotifs();
+      }
+      appState.current = nextState;
+    });
+    return () => { clearInterval(interval); sub.remove(); };
+  }, [pathname]);
 
   const handleLogout = () => {
     Alert.alert('Esci', 'Vuoi uscire dal tuo account?', [

@@ -24,6 +24,8 @@ export default function Login() {
       const user = await login(email.trim(), password);
       if (user.ruolo === 'admin') {
         router.replace('/admin');
+      } else if (user.ruolo === 'fornitore') {
+        router.replace('/fornitore-dashboard');
       } else {
         router.replace('/home');
       }

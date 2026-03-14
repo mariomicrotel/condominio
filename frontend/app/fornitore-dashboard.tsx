@@ -1,8 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/context/AuthContext';
 import { api } from '../src/services/api';
@@ -22,6 +21,8 @@ export default function FornitoreDashboard() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('tutti');
 
+  const pathname = usePathname();
+
   const loadData = useCallback(async () => {
     if (!token) return;
     setLoading(true);
@@ -36,7 +37,7 @@ export default function FornitoreDashboard() {
     finally { setLoading(false); }
   }, [token]);
 
-  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+  useEffect(() => { loadData(); }, [loadData, pathname]);
 
   const handleLogout = () => {
     Alert.alert('Esci', 'Vuoi uscire?', [
