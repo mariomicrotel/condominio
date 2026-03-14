@@ -98,6 +98,7 @@ export default function Admin() {
   const [anomaliaForm, setAnomaliaForm] = useState({ descrizione: '', gravita: 'Moderata', foto_ids: [] as string[], apri_segnalazione: false, fornitore_id: '', tipologia_intervento: '', urgenza_segnalazione: '', note_fornitore: '' });
   const [anomaliaPhotos, setAnomaliaPhotos] = useState<MediaFile[]>([]);
   const [anomaliaVoiceNotes, setAnomaliaVoiceNotes] = useState<{ uri: string; filename: string; duration: number; uploadedId?: string }[]>([]);
+  const [voiceRecorderKey, setVoiceRecorderKey] = useState(0); // Key to reset VoiceRecorder
 
   // Sopralluoghi constants
   const MOTIVI_SOPRALLUOGO = ['Controllo periodico', 'Verifica post-intervento', 'Sopralluogo su segnalazione', 'Perizia', 'Altro'];
