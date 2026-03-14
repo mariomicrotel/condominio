@@ -420,6 +420,19 @@ Login (portale dedicato) → Dashboard Fornitore
               └── Profilo (dati aziendali)
 ```
 
+### Flusso Collaboratore (NUOVO)
+```
+Login (portale collaboratore) → App Sopralluoghi
+              ├── Lista Sopralluoghi (assegnati)
+              ├── Nuovo Sopralluogo (seleziona condominio, data, motivo)
+              ├── Checklist Interattiva (25 voci con semaforo)
+              │       ├── OK 🟢
+              │       ├── Anomalia 🟡 → Documenta (descrizione, foto)
+              │       │       └── [Opzionale] Apri Segnalazione + Assegna Fornitore
+              │       └── Non controllato ⚪
+              └── Chiudi Sopralluogo (valutazione, note finali)
+```
+
 ---
 
 ## 🔐 Autenticazione e Ruoli
