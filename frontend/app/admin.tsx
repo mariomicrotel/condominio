@@ -575,7 +575,7 @@ export default function Admin() {
       const foundItem = checklist.find((c: any) => c.id === itemId);
       
       if (foundItem) {
-        // Reset form and open modal for documenting the anomaly
+        // Reset form
         setAnomaliaForm({ 
           descrizione: '', 
           gravita: 'Moderata', 
@@ -588,16 +588,22 @@ export default function Admin() {
         });
         setAnomaliaPhotos([]);
         setAnomaliaVoiceNotes([]);
-        setVoiceRecorderKey(prev => prev + 1); // Reset voice recorder
+        setVoiceRecorderKey(prev => prev + 1);
         
-        // Set modal data AFTER resetting form
-        setShowAnomaliaModal({ 
-          sopralluogo: showSopralluogoDetail, 
-          item: foundItem, 
-          isNew: true 
-        });
+        // IMPORTANT: Close sopralluogo detail modal FIRST, then open anomalia modal
+        const sopralluogoData = { ...showSopralluogoDetail };
+        setShowSopralluogoDetail(null); // Close detail modal
+        
+        // Use setTimeout to ensure state update is processed
+        setTimeout(() => {
+          setShowAnomaliaModal({ 
+            sopralluogo: sopralluogoData, 
+            item: foundItem, 
+            isNew: true 
+          });
+        }, 100);
       }
-      return; // Don't save yet - will save when user clicks "Salva Anomalia"
+      return;
     }
     
     // For "ok" and "non_controllato", save immediately
