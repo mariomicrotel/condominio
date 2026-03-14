@@ -274,6 +274,18 @@ backend:
         comment: "TESTED: All 16 steps of Portale Fornitori workflow PASSED successfully. 1) Seed data OK, 2) Admin login OK, 3) Create fornitore (POST /api/admin/fornitori) OK, 4) List fornitori (GET /api/admin/fornitori) OK, 5) Condomino login & create segnalazione OK, 6) Admin assign fornitore to segnalazione (POST /api/admin/segnalazioni/{id}/assegna) OK, 7) Fornitore login OK, 8) Fornitore dashboard (GET /api/fornitore/dashboard) OK, 9) List interventions (GET /api/fornitore/interventi) OK, 10) Intervention detail (GET /api/fornitore/interventi/{id}) OK, 11) Create rapportino (POST /api/fornitore/rapportino/{id}) OK, 12) Admin view rapportino (GET /api/admin/segnalazioni/{id}/rapportino) OK, 13) Admin close segnalazione (POST /api/admin/segnalazioni/{id}/chiudi) OK, 14) Admin reopen segnalazione (POST /api/admin/segnalazioni/{id}/riapri) OK, 15) Timeline events (GET /api/admin/segnalazioni/{id}/timeline) OK with 4 timeline events, 16) Delete fornitore (DELETE /api/admin/fornitori/{id}) OK. Complete fornitore workflow functional from creation to intervention completion."
 
 frontend:
+  - task: "Admin create/edit segnalazioni UI (modal for creating new segnalazioni and editing existing ones)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/admin.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NEW: Added 'Nuova Segnalazione' button in Guasti tab. Created modal with form fields (Condominio, Tipologia, Descrizione, Urgenza, Note Admin) and media upload section (camera, gallery, PDF). Added 'Modifica Segnalazione' button in segnalazione detail modal. Both create and edit share the same modal component."
+
   - task: "Admin Config tab (view/edit studio info, API keys, export CSV, gestione estratti conto)"
     implemented: true
     working: "NA"
