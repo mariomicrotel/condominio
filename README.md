@@ -61,13 +61,28 @@ L'app consente ai **condomini** (residenti) di interagire con lo studio e ai **a
 | **Dashboard** | Riepilogo con statistiche (utenti, condomini, segnalazioni, appuntamenti, avvisi) — card cliccabili per navigazione rapida |
 | **Gestione Condomini** | CRUD completo dei condomini |
 | **Gestione Utenti** | Visualizza utenti registrati, associali a condomini per abilitarli, disassociali |
-| **Segnalazioni** | Visualizza, cambia stato (Presa in carico, In lavorazione, Risolta), visualizza allegati |
+| **Segnalazioni** | Visualizza, cambia stato (Presa in carico, In lavorazione, Risolta), **crea nuove segnalazioni**, **modifica segnalazioni esistenti**, visualizza allegati |
+| **Creazione Segnalazioni** | **NUOVA**: L'admin può creare segnalazioni da zero selezionando condominio, tipologia, descrizione, urgenza e allegando file |
+| **Modifica Segnalazioni** | **NUOVA**: L'admin può modificare tipologia, descrizione, urgenza e allegati di segnalazioni esistenti prima di assegnarle |
+| **Gestione Fornitori** | **NUOVA**: CRUD completo dei fornitori esterni (idraulici, elettricisti, ecc.) con anagrafica completa |
+| **Assegnazione Fornitori** | **NUOVA**: Assegna segnalazioni a fornitori specificando note e data prevista intervento |
 | **Appuntamenti** | Conferma, completa o annulla appuntamenti |
 | **Avvisi / Bacheca** | Pubblica avvisi per specifici condomini o per tutti |
 | **Trasmissioni Documenti** | Gestisci documenti ricevuti dai condomini, aggiorna stato |
 | **Impostazioni** | Configura informazioni studio (telefono, email, PEC), chiavi API (Google Maps, Firebase) |
 | **Estratti Conto** | Inserisci/aggiorna estratti conto per ogni utente abilitato |
 | **Export CSV** | Esporta segnalazioni, appuntamenti, utenti in formato CSV |
+
+### 🔨 Portale Fornitore (NUOVO)
+
+| Funzionalità | Descrizione |
+|---|---|
+| **Dashboard Fornitore** | Statistiche interventi: totali, da eseguire, in verifica, completati |
+| **Lista Interventi** | Visualizza interventi assegnati con filtri per stato |
+| **Dettaglio Intervento** | Vedi dettagli segnalazione, indirizzo condominio, foto allegate |
+| **Rapportino Lavori** | Compila rapportino con data, descrizione lavori, esito, materiali e foto |
+| **Stato Intervento** | Traccia lo stato (assegnato → completato → chiuso) |
+| **Notifiche** | Ricevi notifiche su nuovi incarichi e aggiornamenti |
 
 ---
 
