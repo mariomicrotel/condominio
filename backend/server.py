@@ -1456,7 +1456,7 @@ async def create_anomalia(sop_id: str, item_id: str, data: AnomaliaCreate, user=
         "voce": item["voce"],
         "descrizione": data.descrizione,
         "gravita": data.gravita,
-        "nota_vocale_id": data.nota_vocale_id,
+        "nota_vocale_ids": data.nota_vocale_ids,  # Multiple voice notes
         "foto_ids": data.foto_ids,
         "foto_didascalie": data.foto_didascalie,
         "segnalazione_id": existing.get("segnalazione_id") if existing else None,
