@@ -130,4 +130,24 @@ export const api = {
   fornitoreInterventoDetail: (token: string, segId: string) => apiCall(`/fornitore/interventi/${segId}`, { token }),
   createRapportino: (token: string, segId: string, data: any) => apiCall(`/fornitore/rapportino/${segId}`, { method: 'POST', token, body: data }),
   getRapportino: (token: string, segId: string) => apiCall(`/fornitore/rapportino/${segId}`, { token }),
+
+  // ===== COLLABORATORI =====
+  getCollaboratori: (token: string) => apiCall('/admin/collaboratori', { token }),
+  createCollaboratore: (token: string, data: any) => apiCall('/admin/collaboratori', { method: 'POST', token, body: data }),
+  updateCollaboratore: (token: string, id: string, data: any) => apiCall(`/admin/collaboratori/${id}`, { method: 'PUT', token, body: data }),
+  deleteCollaboratore: (token: string, id: string) => apiCall(`/admin/collaboratori/${id}`, { method: 'DELETE', token }),
+  collaboratoreLogin: (email: string, password: string) => apiCall('/collaboratore/login', { method: 'POST', body: { email, password } }),
+
+  // ===== SOPRALLUOGHI =====
+  getSopralluoghi: (token: string) => apiCall('/sopralluoghi', { token }),
+  getSopralluogo: (token: string, id: string) => apiCall(`/sopralluoghi/${id}`, { token }),
+  createSopralluogo: (token: string, data: any) => apiCall('/sopralluoghi', { method: 'POST', token, body: data }),
+  closeSopralluogo: (token: string, id: string, data: any) => apiCall(`/sopralluoghi/${id}/chiudi`, { method: 'POST', token, body: data }),
+  reopenSopralluogo: (token: string, id: string) => apiCall(`/sopralluoghi/${id}/riapri`, { method: 'POST', token }),
+  deleteSopralluogo: (token: string, id: string) => apiCall(`/sopralluoghi/${id}`, { method: 'DELETE', token }),
+  updateChecklistItem: (token: string, sopId: string, itemId: string, stato: string) => 
+    apiCall(`/sopralluoghi/${sopId}/checklist/${itemId}`, { method: 'PUT', token, body: { stato } }),
+  createAnomalia: (token: string, sopId: string, itemId: string, data: any) => 
+    apiCall(`/sopralluoghi/${sopId}/checklist/${itemId}/anomalia`, { method: 'POST', token, body: data }),
+  getCondominioSopralluoghi: (token: string, condId: string) => apiCall(`/condomini/${condId}/sopralluoghi`, { token }),
 };
