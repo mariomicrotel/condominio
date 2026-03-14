@@ -45,6 +45,7 @@ export const api = {
   getAdminDashboard: (token: string) => apiCall('/admin/dashboard', { token }),
   getAdminSegnalazioni: (token: string) => apiCall('/admin/segnalazioni', { token }),
   updateAdminSeg: (token: string, id: string, data: any) => apiCall(`/admin/segnalazioni/${id}`, { method: 'PUT', token, body: data }),
+  createAdminSegnalazione: (token: string, data: any) => apiCall('/admin/segnalazioni', { method: 'POST', token, body: data }),
   getAdminAppuntamenti: (token: string) => apiCall('/admin/appuntamenti', { token }),
   updateAdminApp: (token: string, id: string, data: any) => apiCall(`/admin/appuntamenti/${id}`, { method: 'PUT', token, body: data }),
   getAdminAvvisi: (token: string) => apiCall('/admin/avvisi', { token }),

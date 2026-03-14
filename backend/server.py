@@ -109,6 +109,18 @@ class AssociaUtenteCreate(BaseModel):
 class AdminSegnalazioneUpdate(BaseModel):
     stato: Optional[str] = None
     note_admin: Optional[str] = None
+    tipologia: Optional[str] = None
+    descrizione: Optional[str] = None
+    urgenza: Optional[str] = None
+    allegati: Optional[List[str]] = None  # Replace allegati entirely
+
+class AdminSegnalazioneCreate(BaseModel):
+    condominio_id: str
+    tipologia: str
+    descrizione: str
+    urgenza: str = "Media"
+    allegati: List[str] = []
+    note_admin: str = ""
 
 class AdminRichiestaUpdate(BaseModel):
     stato: Optional[str] = None
@@ -468,11 +480,42 @@ async def admin_update_seg(seg_id: str, data: AdminSegnalazioneUpdate, user=Depe
         upd["stato"] = data.stato
     if data.note_admin is not None:
         upd["note_admin"] = data.note_admin
+    if data.tipologia is not None:
+        upd["tipologia"] = data.tipologia
+    if data.descrizione is not None:
+        upd["descrizione"] = data.descrizione
+    if data.urgenza is not None:
+        upd["urgenza"] = data.urgenza
+    if data.allegati is not None:
+        upd["allegati"] = data.allegati
     await db.segnalazioni.update_one({"id": seg_id}, {"$set": upd})
     seg = await db.segnalazioni.find_one({"id": seg_id}, {"_id": 0})
     if seg and data.stato:
-        await create_notifica(seg["user_id"], "Segnalazione aggiornata", f"La tua segnalazione '{seg['tipologia']}' è ora: {data.stato}", "warning")
+        await create_notifica(seg["user_id"], "Segnalazione aggiornata", f"La tua segnalazione '{seg.get('tipologia', '')}' è ora: {data.stato}", "warning")
     return clean_doc(seg)
+
+@api_router.post("/admin/segnalazioni")
+async def admin_create_seg(data: AdminSegnalazioneCreate, user=Depends(get_admin_user)):
+    """Admin creates a segnalazione directly (not from a condomino)."""
+    cond = await db.condomini.find_one({"id": data.condominio_id}, {"_id": 0})
+    if not cond:
+        raise HTTPException(404, "Condominio non trovato")
+    seg_id = str(uuid.uuid4())
+    counter = await db.segnalazioni.count_documents({}) + 1
+    protocollo = f"SEG-{datetime.now().year}-{counter:03d}"
+    seg = {
+        "id": seg_id, "protocollo": protocollo, "user_id": user["id"],
+        "user_nome": f"{user['nome']} {user.get('cognome', '')} (Admin)",
+        "user_email": user.get("email", ""), "user_telefono": "",
+        "condominio_id": data.condominio_id, "condominio_nome": cond["nome"],
+        "qualita": "Amministratore", "tipologia": data.tipologia,
+        "descrizione": data.descrizione, "urgenza": data.urgenza,
+        "stato": "Inviata", "note_admin": data.note_admin,
+        "immagini": [], "allegati": data.allegati[:10],
+        "created_at": now_iso(), "updated_at": now_iso()
+    }
+    await db.segnalazioni.insert_one(seg)
+    return {k: v for k, v in seg.items() if k != "_id"}
 
 @api_router.get("/admin/richieste-documenti")
 async def admin_richieste(user=Depends(get_admin_user)):
