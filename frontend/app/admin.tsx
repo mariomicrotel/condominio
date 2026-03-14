@@ -20,13 +20,14 @@ interface MediaFile {
   uploadedId?: string;
 }
 
-type Tab = 'dashboard' | 'condomini' | 'utenti' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'fornitori' | 'config';
+type Tab = 'dashboard' | 'condomini' | 'utenti' | 'fornitori' | 'sopralluoghi' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'config';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: 'grid-outline' },
   { key: 'condomini', label: 'Condomini', icon: 'business-outline' },
   { key: 'utenti', label: 'Utenti', icon: 'people-outline' },
   { key: 'fornitori', label: 'Fornitori', icon: 'construct-outline' },
+  { key: 'sopralluoghi', label: 'Sopralluoghi', icon: 'search-outline' },
   { key: 'segnalazioni', label: 'Guasti', icon: 'warning-outline' },
   { key: 'appuntamenti', label: 'Appuntamenti', icon: 'calendar-outline' },
   { key: 'avvisi', label: 'Avvisi', icon: 'megaphone-outline' },
