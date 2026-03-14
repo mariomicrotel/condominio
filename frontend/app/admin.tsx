@@ -955,6 +955,21 @@ export default function Admin() {
                 )}
               </View>
             )}
+            
+            {/* Edit segnalazione button - only if not already assigned or closed */}
+            {modalSeg && modalSeg.stato !== 'Risolta' && (
+              <TouchableOpacity 
+                style={[s.statusBtn, { borderColor: '#3B82F6', marginTop: 12, backgroundColor: '#EFF6FF' }]}
+                onPress={() => openEditSegModal(modalSeg)}
+                testID="edit-seg-btn"
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Ionicons name="create-outline" size={18} color="#3B82F6" />
+                  <Text style={[s.statusBtnText, { color: '#3B82F6', fontWeight: '700' }]}>Modifica Segnalazione</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            
             <TouchableOpacity style={s.closeBtn} onPress={() => setModalSeg(null)}><Text style={s.closeBtnText}>Chiudi</Text></TouchableOpacity>
           </ScrollView>
         </View>
