@@ -105,6 +105,18 @@
 user_problem_statement: "App for Studio Tardugno & Bonifacio - accounting and condominium administration firm. Features: auth, admin panel (config, notifications, trasmissioni, estratto conto, CSV export), resident dashboard with fault reports, appointments, document requests, bulletin board."
 
 backend:
+  - task: "Collaboratori & Sopralluoghi endpoints"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NEW: Full Sopralluoghi module implemented. Endpoints: POST/GET/PUT/DELETE /admin/collaboratori (CRUD), POST /collaboratore/login, GET /collaboratore/profilo, POST/GET /sopralluoghi, GET /sopralluoghi/{id}, PUT /sopralluoghi/{id}/checklist/{item_id}, POST /sopralluoghi/{id}/checklist/{item_id}/anomalia, POST /sopralluoghi/{id}/chiudi, POST /sopralluoghi/{id}/riapri, DELETE /sopralluoghi/{id}, GET /condomini/{id}/sopralluoghi. Features: 25-item checklist with traffic light system, anomaly documentation with photos/voice notes, automatic segnalazione creation from anomalies with fornitore assignment."
+
   - task: "Admin create/edit segnalazioni endpoints (POST /admin/segnalazioni, PUT /admin/segnalazioni/{id})"
     implemented: true
     working: true
