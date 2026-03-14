@@ -107,15 +107,18 @@ user_problem_statement: "App for Studio Tardugno & Bonifacio - accounting and co
 backend:
   - task: "Admin create/edit segnalazioni endpoints (POST /admin/segnalazioni, PUT /admin/segnalazioni/{id})"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "NEW: Admin can create segnalazioni from scratch using POST /api/admin/segnalazioni and modify existing ones using PUT /api/admin/segnalazioni/{id}. The PUT endpoint now accepts tipologia, descrizione, urgenza, note_admin, and allegati fields for full content modification."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: All 7 test steps passed successfully. 1) Seed data setup OK, 2) Admin login (admin@tardugno.it/admin123) OK, 3) Get condominio ID OK, 4) POST /api/admin/segnalazioni creates segnalazione with protocollo, ID, stato='Inviata' OK, 5) Segnalazione appears in GET /api/admin/segnalazioni list OK, 6) PUT /api/admin/segnalazioni/{id} updates tipologia, descrizione, urgenza, note_admin OK, 7) Changes persisted correctly in admin list OK. Both admin create and edit endpoints working perfectly."
 
   - task: "Auth endpoints (register, login, profile)"
     implemented: true
