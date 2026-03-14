@@ -1957,13 +1957,21 @@ export default function Admin() {
             {/* Voice Notes - Multiple */}
             <Text style={[s.configLabel, { marginTop: 12 }]}>Note Vocali ({anomaliaVoiceNotes.length})</Text>
             <View style={{ marginTop: 8 }}>
-              {/* Existing voice notes */}
+              {/* Existing voice notes with play button */}
               {anomaliaVoiceNotes.map((vn, idx) => (
                 <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 8, padding: 10, marginBottom: 8, gap: 10 }}>
-                  <Ionicons name="mic" size={20} color="#DC2626" />
-                  <Text style={{ flex: 1, fontSize: 13, color: Colors.textSec }}>
-                    Nota {idx + 1} • {Math.floor(vn.duration / 60)}:{(vn.duration % 60).toString().padStart(2, '0')}
-                  </Text>
+                  <TouchableOpacity 
+                    onPress={() => playVoiceNote(vn.uri, idx)}
+                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: playingVoiceNoteIndex === idx ? '#DC2626' : Colors.sky, justifyContent: 'center', alignItems: 'center' }}
+                  >
+                    <Ionicons name={playingVoiceNoteIndex === idx ? 'stop' : 'play'} size={16} color={Colors.white} />
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: Colors.textMain }}>Nota {idx + 1}</Text>
+                    <Text style={{ fontSize: 11, color: Colors.textMuted }}>
+                      {Math.floor(vn.duration / 60)}:{(vn.duration % 60).toString().padStart(2, '0')}
+                    </Text>
+                  </View>
                   <TouchableOpacity onPress={() => setAnomaliaVoiceNotes(prev => prev.filter((_, i) => i !== idx))}>
                     <Ionicons name="close-circle" size={22} color={Colors.error} />
                   </TouchableOpacity>
