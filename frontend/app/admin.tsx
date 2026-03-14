@@ -294,7 +294,7 @@ export default function Admin() {
     <SafeAreaView style={s.safe}>
       {/* Top bar */}
       <View style={s.topBar}>
-        <TouchableOpacity testID="admin-home-btn" onPress={() => router.push('/home')} style={s.topBarBtn}>
+        <TouchableOpacity testID="admin-home-btn" onPress={() => setTab('dashboard')} style={s.topBarBtn}>
           <Ionicons name="home-outline" size={22} color={Colors.navy} />
         </TouchableOpacity>
         <Text style={s.topTitle}>Pannello Admin</Text>
