@@ -604,8 +604,11 @@ export default function Admin() {
 
     setLoading(true);
     try {
+      const sopId = showAnomaliaModal.sopralluogo.id;
+      const itemId = showAnomaliaModal.item.id;
+      
       // First verify sopralluogo is still in_corso
-      const currentSop = await api.getSopralluogo(token!, showAnomaliaModal.sopralluogo.id);
+      const currentSop = await api.getSopralluogo(token!, sopId);
       if (currentSop.stato !== 'in_corso') {
         Alert.alert('Attenzione', 'Il sopralluogo è stato completato. Non è più possibile modificare le anomalie.');
         setShowAnomaliaModal(null);
@@ -624,18 +627,28 @@ export default function Admin() {
         }
       }
 
-      // Upload voice note if present
-      let voiceNoteId: string | undefined;
-      if (anomaliaVoiceNote) {
-        const uploaded = await api.uploadFile(token!, anomaliaVoiceNote.uri, anomaliaVoiceNote.filename, 'audio/x-m4a');
-        voiceNoteId = uploaded.id;
+      // Upload all voice notes
+      const voiceNoteIds: string[] = [];
+      for (const vn of anomaliaVoiceNotes) {
+        if (!vn.uploadedId) {
+          const uploaded = await api.uploadFile(token!, vn.uri, vn.filename, 'audio/x-m4a');
+          voiceNoteIds.push(uploaded.id);
+        } else {
+          voiceNoteIds.push(vn.uploadedId);
+        }
       }
 
-      await api.createAnomalia(token!, showAnomaliaModal.sopralluogo.id, showAnomaliaModal.item.id, {
+      // If this is a NEW anomaly, first update the checklist item state
+      if (showAnomaliaModal.isNew) {
+        await api.updateChecklistItem(token!, sopId, itemId, 'anomalia');
+      }
+
+      // Now create/update the anomalia with all data
+      await api.createAnomalia(token!, sopId, itemId, {
         descrizione: anomaliaForm.descrizione,
         gravita: anomaliaForm.gravita,
         foto_ids: fotoIds,
-        nota_vocale_id: voiceNoteId,
+        nota_vocale_ids: voiceNoteIds,  // Multiple voice notes
         apri_segnalazione: anomaliaForm.apri_segnalazione,
         fornitore_id: anomaliaForm.fornitore_id || undefined,
         tipologia_intervento: anomaliaForm.tipologia_intervento || undefined,
@@ -644,9 +657,10 @@ export default function Admin() {
       });
 
       setShowAnomaliaModal(null);
-      setAnomaliaVoiceNote(null);
+      setAnomaliaVoiceNotes([]);
+      
       // Refresh sopralluogo
-      const full = await api.getSopralluogo(token!, showAnomaliaModal.sopralluogo.id);
+      const full = await api.getSopralluogo(token!, sopId);
       setShowSopralluogoDetail(full);
       
       if (anomaliaForm.apri_segnalazione) {
