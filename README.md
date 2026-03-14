@@ -260,7 +260,11 @@ Tutti gli endpoint sono prefissati con `/api`.
 | `POST` | `/api/upload` | Upload file (multipart, max 50MB) | ✅ |
 | `GET` | `/api/files/{id}/{filename}` | Download file | No |
 
-**Formati supportati:** JPEG, PNG, GIF, WebP, HEIC, MP4, MOV, MPEG, AVI, WebM, PDF
+**Formati supportati:** 
+- **Immagini:** JPEG, PNG, GIF, WebP, HEIC
+- **Video:** MP4, MOV, MPEG, AVI, WebM
+- **Documenti:** PDF
+- **Audio:** MP3, M4A, WAV, OGG, AAC, WebM (per note vocali)
 
 ### Richieste Documenti
 
