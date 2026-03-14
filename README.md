@@ -487,6 +487,9 @@ EXPO_PUBLIC_BACKEND_URL=https://tuo-dominio.com
 | `uploaded_files` | Metadati file caricati |
 | `app_config` | Configurazione globale app |
 | `codici_invito` | Codici invito (legacy) |
+| `fornitori` | **NUOVO**: Anagrafica fornitori esterni |
+| `interventi` | **NUOVO**: Interventi assegnati ai fornitori |
+| `rapportini` | **NUOVO**: Rapporti di lavoro completati |
 
 ### Modello Utente
 
