@@ -1826,6 +1826,15 @@ export default function Admin() {
               )}
             </View>
             
+            {/* Voice Note */}
+            <VoiceRecorder
+              label="Nota Vocale"
+              onRecordingComplete={(uri, filename, duration) => setAnomaliaVoiceNote({ uri, filename, duration })}
+              existingRecordingUri={anomaliaVoiceNote?.uri}
+              existingRecordingDuration={anomaliaVoiceNote?.duration}
+              onDeleteRecording={() => setAnomaliaVoiceNote(null)}
+            />
+            
             {/* Create segnalazione option */}
             <View style={{ marginTop: 20, padding: 12, backgroundColor: '#FEF3C7', borderRadius: 10 }}>
               <TouchableOpacity onPress={() => setAnomaliaForm(p => ({ ...p, apri_segnalazione: !p.apri_segnalazione }))} 
