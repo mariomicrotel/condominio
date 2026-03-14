@@ -1964,7 +1964,7 @@ export default function Admin() {
             </View>
             
             <PrimaryButton title="Salva Anomalia" onPress={saveAnomaliaHandler} loading={loading} testID="anomalia-save-btn" style={{ backgroundColor: '#F59E0B', marginTop: 16 }} />
-            <TouchableOpacity style={s.closeBtn} onPress={() => setShowAnomaliaModal(null)}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
+            <TouchableOpacity style={s.closeBtn} onPress={closeAnomaliaModal}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
