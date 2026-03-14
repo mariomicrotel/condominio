@@ -1115,6 +1115,150 @@ export default function Admin() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Modal: Nuova/Modifica Segnalazione */}
+      <Modal visible={showNewSegModal} transparent animationType="slide" onRequestClose={() => { setShowNewSegModal(false); resetSegForm(); }}>
+        <View style={s.modalOverlay}>
+          <ScrollView style={s.modal} keyboardShouldPersistTaps="handled">
+            <Text style={s.modalTitle}>{isEditingSeg ? 'Modifica Segnalazione' : 'Nuova Segnalazione'}</Text>
+            {isEditingSeg && <Text style={s.modalSub}>Modifica i dettagli della segnalazione</Text>}
+            
+            {/* Condominio - only for new segnalazioni */}
+            {!isEditingSeg && (
+              <PickerSelect 
+                label="Condominio *" 
+                value={condomini.find(c => c.id === segForm.condominio_id)?.nome || ''}
+                options={condomini.map(c => c.nome)}
+                onSelect={v => { const c = condomini.find(c => c.nome === v); if (c) setSegForm(p => ({ ...p, condominio_id: c.id })); }}
+                testID="seg-new-cond-picker" 
+              />
+            )}
+            
+            {/* Tipologia */}
+            <PickerSelect 
+              label="Tipologia *" 
+              value={segForm.tipologia} 
+              options={TIPOLOGIE} 
+              onSelect={v => setSegForm(p => ({ ...p, tipologia: v }))} 
+              testID="seg-new-tipo-picker" 
+            />
+            
+            {/* Descrizione */}
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Descrizione *</Text>
+              <TextInput 
+                testID="seg-new-desc-input" 
+                style={[s.input, { height: 100, textAlignVertical: 'top' }]} 
+                placeholder="Descrivi il problema nel dettaglio..." 
+                value={segForm.descrizione} 
+                onChangeText={v => setSegForm(p => ({ ...p, descrizione: v }))} 
+                multiline 
+                placeholderTextColor={Colors.textMuted} 
+              />
+            </View>
+            
+            {/* Urgenza */}
+            <PickerSelect 
+              label="Urgenza" 
+              value={segForm.urgenza} 
+              options={URGENZE} 
+              onSelect={v => setSegForm(p => ({ ...p, urgenza: v }))} 
+              testID="seg-new-urgenza-picker" 
+            />
+            
+            {/* Note admin */}
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Note Admin (uso interno)</Text>
+              <TextInput 
+                testID="seg-new-note-input" 
+                style={[s.input, { height: 60, textAlignVertical: 'top' }]} 
+                placeholder="Note visibili solo all'admin..." 
+                value={segForm.note_admin} 
+                onChangeText={v => setSegForm(p => ({ ...p, note_admin: v }))} 
+                multiline 
+                placeholderTextColor={Colors.textMuted} 
+              />
+            </View>
+            
+            {/* Media Upload Section */}
+            <View style={s.mediaSection}>
+              <Text style={s.mediaSectionTitle}>Allegati (foto, video, documenti)</Text>
+              <Text style={s.mediaSectionHint}>Puoi allegare fino a 10 file. Max 50MB per file.</Text>
+
+              <View style={s.mediaButtons}>
+                <TouchableOpacity testID="seg-new-camera-btn" style={s.mediaBtn} onPress={() => pickSegImage(true)} activeOpacity={0.7}>
+                  <View style={[s.mediaBtnIcon, { backgroundColor: '#DBEAFE' }]}>
+                    <Ionicons name="camera" size={22} color="#2563EB" />
+                  </View>
+                  <Text style={s.mediaBtnLabel}>Fotocamera</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity testID="seg-new-gallery-btn" style={s.mediaBtn} onPress={() => pickSegImage(false)} activeOpacity={0.7}>
+                  <View style={[s.mediaBtnIcon, { backgroundColor: '#F3E8FF' }]}>
+                    <Ionicons name="images" size={22} color="#7C3AED" />
+                  </View>
+                  <Text style={s.mediaBtnLabel}>Galleria</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity testID="seg-new-pdf-btn" style={s.mediaBtn} onPress={pickSegDocument} activeOpacity={0.7}>
+                  <View style={[s.mediaBtnIcon, { backgroundColor: '#FEE2E2' }]}>
+                    <Ionicons name="document-text" size={22} color="#DC2626" />
+                  </View>
+                  <Text style={s.mediaBtnLabel}>PDF</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Selected files list */}
+              {segMediaFiles.length > 0 && (
+                <View style={s.filesList}>
+                  <Text style={s.filesCount}>{segMediaFiles.length}/10 file selezionati</Text>
+                  {segMediaFiles.map((file, index) => (
+                    <View key={index} style={s.fileItem}>
+                      {file.type === 'image' ? (
+                        <Image source={{ uri: file.uri }} style={s.fileThumbnail} />
+                      ) : (
+                        <View style={[s.fileIconWrap, { backgroundColor: getFileColor(file.type) + '15' }]}>
+                          <Ionicons name={getFileIcon(file.type) as any} size={22} color={getFileColor(file.type)} />
+                        </View>
+                      )}
+                      <View style={s.fileInfo}>
+                        <Text style={s.fileName} numberOfLines={1}>{file.filename}</Text>
+                        <View style={s.fileMetaRow}>
+                          <Text style={s.fileMeta}>
+                            {file.type === 'image' ? 'Foto' : file.type === 'video' ? 'Video' : 'PDF'}
+                            {file.size ? ` • ${formatFileSize(file.size)}` : ''}
+                            {file.uploadedId ? ' (già caricato)' : ''}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity testID={`seg-new-remove-file-${index}`} onPress={() => removeSegFile(index)} style={s.removeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Ionicons name="close-circle" size={24} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Upload progress */}
+            {segUploadProgress ? (
+              <View style={s.progressBar}>
+                <ActivityIndicator size="small" color={Colors.navy} />
+                <Text style={s.progressText}>{segUploadProgress}</Text>
+              </View>
+            ) : null}
+            
+            <PrimaryButton 
+              title={loading ? (isEditingSeg ? "Salvataggio..." : "Creazione...") : (isEditingSeg ? "Salva Modifiche" : "Crea Segnalazione")} 
+              onPress={handleSaveSegnalazione} 
+              loading={loading} 
+              testID="seg-new-submit-btn" 
+              style={{ backgroundColor: '#D97706' }} 
+            />
+            <TouchableOpacity style={s.closeBtn} onPress={() => { setShowNewSegModal(false); resetSegForm(); }}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
