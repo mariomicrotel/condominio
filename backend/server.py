@@ -29,6 +29,8 @@ ALLOWED_TYPES = {
     'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
     'video/mp4', 'video/quicktime', 'video/mpeg', 'video/avi', 'video/webm',
     'application/pdf',
+    # Audio types for voice notes
+    'audio/mpeg', 'audio/mp4', 'audio/m4a', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/aac',
 }
 
 JWT_SECRET = os.environ.get('JWT_SECRET', 'studio-tardugno-fallback-key')
