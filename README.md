@@ -92,11 +92,12 @@ L'app consente ai **condomini** (residenti) di interagire con lo studio e ai **a
 | **Creazione Sopralluogo** | Avvia un nuovo sopralluogo per un condominio con data, ora, motivo |
 | **Checklist 25 Voci** | Verifica standardizzata: ascensore, balconi, impianti, pulizia, etc. |
 | **Sistema Semaforo** | 🟢 OK, 🟡 Anomalia, ⚪ Non controllato per ogni voce |
-| **Documentazione Anomalie** | Descrizione, gravità, foto per ogni anomalia rilevata |
-| **Note Vocali** | **NUOVO**: Registra note vocali per ogni anomalia (usando expo-av) |
-| **Creazione Segnalazione** | Apri segnalazione automatica da anomalia con fornitore assegnato |
-| **Chiusura Sopralluogo** | Valutazione generale, note finali, timestamp completamento |
-| **Storico Sopralluoghi** | Lista con riepilogo semafori per condominio |
+| **Documentazione Anomalie** | Cliccando su Anomalia si apre il modale per documentare con descrizione, gravità, foto |
+| **Note Vocali Multiple** | Registra **più note vocali** per ogni anomalia con riproduzione integrata (play/stop) |
+| **Creazione Segnalazione da Anomalia** | Apri segnalazione automatica da anomalia con fornitore assegnato direttamente dal sopralluogo |
+| **Flusso Contestuale** | Prima compili tutte le anomalie, poi chiudi il sopralluogo (non viceversa) |
+| **Chiusura Sopralluogo** | Valutazione generale (Buono/Discreto/Sufficiente/Critico), note finali, conferma obbligatoria |
+| **Storico Sopralluoghi** | Lista con riepilogo semafori (✓ OK, ⚠ Anomalie, ○ Non controllati) per ogni sopralluogo |
 
 ---
 
