@@ -1877,7 +1877,7 @@ export default function Admin() {
       </Modal>
 
       {/* Modal: Anomalia */}
-      <Modal visible={!!showAnomaliaModal} transparent animationType="slide" onRequestClose={() => setShowAnomaliaModal(null)}>
+      <Modal visible={!!showAnomaliaModal} transparent animationType="slide" onRequestClose={closeAnomaliaModal}>
         <View style={s.modalOverlay}>
           <ScrollView style={s.modal} keyboardShouldPersistTaps="handled">
             <Text style={s.modalTitle}>Anomalia: {showAnomaliaModal?.item?.voce}</Text>
