@@ -390,6 +390,7 @@ Login → Pannello Admin (con tab scorrevoli)
 |-------|-------------|
 | `condomino` | Residente — accede alla dashboard con i servizi |
 | `admin` | Amministratore — accede al pannello di gestione completo |
+| `fornitore` | **NUOVO**: Fornitore esterno — accede al portale per gestire interventi assegnati |
 
 ### Credenziali Demo (dopo `/api/seed`)
 
@@ -397,6 +398,7 @@ Login → Pannello Admin (con tab scorrevoli)
 |-------|-------|----------|
 | Admin | `admin@tardugno.it` | `admin123` |
 | Condomino | `mario.rossi@email.it` | `password123` |
+| Fornitore | Creato dall'admin | (definita dall'admin) |
 
 ---
 
