@@ -85,6 +85,22 @@ export default function Admin() {
   const [segForm, setSegForm] = useState({ condominio_id: '', tipologia: '', descrizione: '', urgenza: 'Media', note_admin: '' });
   const [segMediaFiles, setSegMediaFiles] = useState<MediaFile[]>([]);
   const [segUploadProgress, setSegUploadProgress] = useState('');
+  // Sopralluoghi state
+  const [sopralluoghi, setSopralluoghi] = useState<any[]>([]);
+  const [collaboratori, setCollaboratori] = useState<any[]>([]);
+  const [showNewSopralluogo, setShowNewSopralluogo] = useState(false);
+  const [showSopralluogoDetail, setShowSopralluogoDetail] = useState<any>(null);
+  const [sopralluogoForm, setSopralluogoForm] = useState({ condominio_id: '', data: '', ora_inizio: '', motivo: 'Controllo periodico', note_generali: '', collaboratore_id: '' });
+  const [showNewCollaboratore, setShowNewCollaboratore] = useState(false);
+  const [collabForm, setCollabForm] = useState({ nome: '', cognome: '', email: '', password: '', telefono: '', qualifica: '', stato: 'Attivo' });
+  const [showAnomaliaModal, setShowAnomaliaModal] = useState<any>(null); // { sopralluogo, item }
+  const [anomaliaForm, setAnomaliaForm] = useState({ descrizione: '', gravita: 'Moderata', foto_ids: [] as string[], apri_segnalazione: false, fornitore_id: '', tipologia_intervento: '', urgenza_segnalazione: '', note_fornitore: '' });
+  const [anomaliaPhotos, setAnomaliaPhotos] = useState<MediaFile[]>([]);
+
+  // Sopralluoghi constants
+  const MOTIVI_SOPRALLUOGO = ['Controllo periodico', 'Verifica post-intervento', 'Sopralluogo su segnalazione', 'Perizia', 'Altro'];
+  const GRAVITA_OPTIONS = ['Lieve', 'Moderata', 'Grave', 'Urgente'];
+  const VALUTAZIONI = ['Buono', 'Discreto', 'Sufficiente', 'Critico'];
 
   const loadAll = useCallback(async () => {
     setLoading(true);
