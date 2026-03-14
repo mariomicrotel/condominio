@@ -107,15 +107,18 @@ user_problem_statement: "App for Studio Tardugno & Bonifacio - accounting and co
 backend:
   - task: "Collaboratori & Sopralluoghi endpoints"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "NEW: Full Sopralluoghi module implemented. Endpoints: POST/GET/PUT/DELETE /admin/collaboratori (CRUD), POST /collaboratore/login, GET /collaboratore/profilo, POST/GET /sopralluoghi, GET /sopralluoghi/{id}, PUT /sopralluoghi/{id}/checklist/{item_id}, POST /sopralluoghi/{id}/checklist/{item_id}/anomalia, POST /sopralluoghi/{id}/chiudi, POST /sopralluoghi/{id}/riapri, DELETE /sopralluoghi/{id}, GET /condomini/{id}/sopralluoghi. Features: 25-item checklist with traffic light system, anomaly documentation with photos/voice notes, automatic segnalazione creation from anomalies with fornitore assignment."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: All 15 steps of sopralluoghi workflow PASSED successfully! ✅ 1) Seed data reset OK, 2) Admin login (admin@tardugno.it/admin123) OK, 3) POST /api/admin/collaboratori creates collaboratore (Marco Verdi) OK, 4) GET /api/admin/collaboratori lists collaboratore OK, 5) POST /api/collaboratore/login (marco.verdi@studio.it/Collab123!) OK, 6) GET /api/condomini gets condominio_id OK, 7) POST /api/sopralluoghi creates sopralluogo with 25-item checklist OK, 8) GET /api/sopralluoghi shows sopralluogo with checklist summary (25 non_controllato) OK, 9) GET /api/sopralluoghi/{id} returns full details with 25 checklist items OK, 10) PUT checklist item to 'ok' status OK, 11) PUT checklist item to 'anomalia' status OK, 12) POST anomalia creation ('Lampada fulminata al terzo piano', gravita='Moderata') OK, 13) Checklist states and anomalia details verified OK, 14) POST /api/sopralluoghi/{id}/chiudi closes sopralluogo OK, 15) Final verification shows stato='completato' OK. Complete sopralluoghi module is fully functional with collaboratori management, sopralluogo creation, 25-item checklist system, anomaly tracking, and sopralluogo closure workflow."
 
   - task: "Admin create/edit segnalazioni endpoints (POST /admin/segnalazioni, PUT /admin/segnalazioni/{id})"
     implemented: true
