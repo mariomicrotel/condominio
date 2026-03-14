@@ -1053,6 +1053,92 @@ export default function Admin() {
           </View>
         )}
 
+        {/* ====== SOPRALLUOGHI ====== */}
+        {tab === 'sopralluoghi' && (
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 12 }}>
+              <TouchableOpacity testID="admin-new-sop-btn" style={[s.addBtn, { flex: 1, backgroundColor: '#7C3AED' }]} onPress={() => { resetSopralluogoForm(); setShowNewSopralluogo(true); }}>
+                <Ionicons name="add" size={22} color={Colors.white} />
+                <Text style={s.addBtnText}>Nuovo Sopralluogo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity testID="admin-new-collab-btn" style={[s.addBtn, { backgroundColor: '#6366F1', paddingHorizontal: 12 }]} onPress={() => setShowNewCollaboratore(true)}>
+                <Ionicons name="person-add" size={20} color={Colors.white} />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Collaboratori section */}
+            {collaboratori.length > 0 && (
+              <View style={{ marginHorizontal: 16, marginTop: 12 }}>
+                <Text style={s.secTitle}>Collaboratori ({collaboratori.length})</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
+                  {collaboratori.map(c => (
+                    <View key={c.id} style={{ backgroundColor: Colors.white, borderRadius: 12, padding: 12, marginRight: 10, minWidth: 140, borderWidth: 1, borderColor: Colors.border }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textMain }}>{c.nome} {c.cognome}</Text>
+                      <Text style={{ fontSize: 11, color: Colors.textMuted }}>{c.qualifica || 'Collaboratore'}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 }}>
+                        <Ionicons name="search-outline" size={12} color={Colors.textMuted} />
+                        <Text style={{ fontSize: 11, color: Colors.textMuted }}>{c.sopralluoghi_count || 0} sopralluoghi</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => deleteCollaboratoreHandler(c.id, `${c.nome} ${c.cognome}`)} style={{ position: 'absolute', top: 8, right: 8 }}>
+                        <Ionicons name="close-circle" size={18} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            <Text style={[s.secTitle, { marginLeft: 16, marginTop: 8 }]}>Sopralluoghi</Text>
+            <FlatList data={sopralluoghi} keyExtractor={i => i.id} contentContainerStyle={s.content}
+              ListEmptyComponent={<Text style={s.emptyText}>Nessun sopralluogo registrato</Text>}
+              renderItem={({ item }) => (
+                <TouchableOpacity testID={`admin-sop-${item.id}`} style={s.listCard} onPress={() => loadSopralluogoDetail(item.id)}>
+                  <View style={s.listRow}>
+                    <View style={[s.iconCircle, { backgroundColor: '#EDE9FE' }]}>
+                      <Ionicons name="search" size={18} color="#7C3AED" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.listTitle}>{item.condominio_nome}</Text>
+                      <Text style={s.listSub2}>{item.eseguito_da} • {new Date(item.data).toLocaleDateString('it-IT')}</Text>
+                      <Text style={s.listMeta}>{item.motivo}</Text>
+                      {/* Semaforo summary */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 12 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
+                          <Text style={{ fontSize: 11, color: '#22C55E', fontWeight: '600' }}>{item.checklist_ok || 0}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Ionicons name="alert-circle" size={14} color="#F59E0B" />
+                          <Text style={{ fontSize: 11, color: '#F59E0B', fontWeight: '600' }}>{item.checklist_anomalie || 0}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Ionicons name="ellipse-outline" size={14} color="#9CA3AF" />
+                          <Text style={{ fontSize: 11, color: '#9CA3AF', fontWeight: '600' }}>{item.checklist_non_controllato || 0}</Text>
+                        </View>
+                        {item.segnalazioni_create > 0 && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Ionicons name="warning" size={14} color="#DC2626" />
+                            <Text style={{ fontSize: 11, color: '#DC2626', fontWeight: '600' }}>{item.segnalazioni_create} seg.</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <View style={[s.badge, { backgroundColor: item.stato === 'completato' ? '#DCFCE7' : '#FEF3C7' }]}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: item.stato === 'completato' ? '#16A34A' : '#D97706' }}>
+                          {item.stato === 'completato' ? 'COMPLETATO' : 'IN CORSO'}
+                        </Text>
+                      </View>
+                      {item.valutazione && (
+                        <Text style={{ fontSize: 10, color: Colors.textMuted, marginTop: 4 }}>{item.valutazione}</Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )} />
+          </View>
+        )}
+
         {/* ====== CONFIG ====== */}
         {tab === 'config' && (
           <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
