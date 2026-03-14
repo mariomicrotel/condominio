@@ -105,14 +105,16 @@ export default function Admin() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, cond, seg, app, avv, ut, trasm, forn] = await Promise.all([
+      const [s, cond, seg, app, avv, ut, trasm, forn, sop, collab] = await Promise.all([
         api.getAdminDashboard(token!), api.getCondomini(token!),
         api.getAdminSegnalazioni(token!), api.getAdminAppuntamenti(token!),
         api.getAdminAvvisi(token!), api.getAdminUtenti(token!),
         api.getAdminTrasmissioni(token!).catch(() => []),
         api.getAdminFornitori(token!).catch(() => []),
+        api.getSopralluoghi(token!).catch(() => []),
+        api.getCollaboratori(token!).catch(() => []),
       ]);
-      setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app); setAvvisi(avv); setUtenti(ut); setTrasmissioni(trasm); setFornitori(forn);
+      setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app); setAvvisi(avv); setUtenti(ut); setTrasmissioni(trasm); setFornitori(forn); setSopralluoghi(sop); setCollaboratori(collab);
     } catch {} finally { setLoading(false); }
   }, [token]);
 
