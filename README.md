@@ -84,6 +84,19 @@ L'app consente ai **condomini** (residenti) di interagire con lo studio e ai **a
 | **Stato Intervento** | Traccia lo stato (assegnato → completato → chiuso) |
 | **Notifiche** | Ricevi notifiche su nuovi incarichi e aggiornamenti |
 
+### 🔍 Modulo Sopralluoghi (NUOVO)
+
+| Funzionalità | Descrizione |
+|---|---|
+| **Gestione Collaboratori** | CRUD collaboratori dello studio con login dedicato |
+| **Creazione Sopralluogo** | Avvia un nuovo sopralluogo per un condominio con data, ora, motivo |
+| **Checklist 25 Voci** | Verifica standardizzata: ascensore, balconi, impianti, pulizia, etc. |
+| **Sistema Semaforo** | 🟢 OK, 🟡 Anomalia, ⚪ Non controllato per ogni voce |
+| **Documentazione Anomalie** | Descrizione, gravità, foto per ogni anomalia rilevata |
+| **Creazione Segnalazione** | Apri segnalazione automatica da anomalia con fornitore assegnato |
+| **Chiusura Sopralluogo** | Valutazione generale, note finali, timestamp completamento |
+| **Storico Sopralluoghi** | Lista con riepilogo semafori per condominio |
+
 ---
 
 ## 🏗 Architettura Tecnica
