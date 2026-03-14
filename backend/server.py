@@ -1176,6 +1176,427 @@ async def admin_fornitore_interventi(forn_id: str, user=Depends(get_admin_user))
             r["condominio_nome"] = cond["nome"] if cond else "N/A"
     return raps
 
+# ================ COLLABORATORI & SOPRALLUOGHI ================
+
+# ---- Collaboratori: Auth helper ----
+
+async def get_collaboratore_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    payload = decode_token(credentials.credentials)
+    user = await db.collaboratori.find_one({"id": payload["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(403, "Collaboratore non trovato")
+    if user.get("stato") != "Attivo":
+        raise HTTPException(403, "Account sospeso")
+    return user
+
+async def get_admin_or_collaboratore(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Allow access for both admin and collaboratore roles."""
+    payload = decode_token(credentials.credentials)
+    ruolo = payload.get("ruolo", "")
+    if ruolo == "admin":
+        user = await db.users.find_one({"id": payload["user_id"], "ruolo": "admin"}, {"_id": 0})
+        if user:
+            user["_tipo"] = "admin"
+            return user
+    elif ruolo == "collaboratore":
+        user = await db.collaboratori.find_one({"id": payload["user_id"]}, {"_id": 0})
+        if user and user.get("stato") == "Attivo":
+            user["_tipo"] = "collaboratore"
+            return user
+    raise HTTPException(403, "Accesso negato")
+
+# ---- Collaboratori CRUD (Admin only) ----
+
+@api_router.post("/admin/collaboratori")
+async def create_collaboratore(data: CollaboratoreCreate, user=Depends(get_admin_user)):
+    existing = await db.collaboratori.find_one({"email": data.email})
+    if existing:
+        raise HTTPException(400, "Email già registrata")
+    
+    collab_id = str(uuid.uuid4())
+    collaboratore = {
+        "id": collab_id,
+        "nome": data.nome,
+        "cognome": data.cognome,
+        "email": data.email,
+        "password_hash": hash_pw(data.password),
+        "telefono": data.telefono,
+        "qualifica": data.qualifica,
+        "stato": data.stato,
+        "created_by": user["id"],
+        "created_at": now_iso()
+    }
+    await db.collaboratori.insert_one(collaboratore)
+    return {k: v for k, v in collaboratore.items() if k not in ("_id", "password_hash")}
+
+@api_router.get("/admin/collaboratori")
+async def list_collaboratori(user=Depends(get_admin_user)):
+    collabs = await db.collaboratori.find({}, {"_id": 0, "password_hash": 0}).sort("nome", 1).to_list(200)
+    # Add sopralluoghi count for each
+    for c in collabs:
+        c["sopralluoghi_count"] = await db.sopralluoghi.count_documents({"collaboratore_id": c["id"]})
+    return collabs
+
+@api_router.put("/admin/collaboratori/{collab_id}")
+async def update_collaboratore(collab_id: str, data: CollaboratoreUpdate, user=Depends(get_admin_user)):
+    upd = {k: v for k, v in data.dict().items() if v is not None}
+    upd["updated_at"] = now_iso()
+    await db.collaboratori.update_one({"id": collab_id}, {"$set": upd})
+    return clean_doc(await db.collaboratori.find_one({"id": collab_id}, {"_id": 0, "password_hash": 0}))
+
+@api_router.delete("/admin/collaboratori/{collab_id}")
+async def delete_collaboratore(collab_id: str, user=Depends(get_admin_user)):
+    await db.collaboratori.delete_one({"id": collab_id})
+    return {"message": "Collaboratore eliminato"}
+
+# ---- Collaboratore Login ----
+
+@api_router.post("/collaboratore/login")
+async def collaboratore_login(data: UserLogin):
+    collab = await db.collaboratori.find_one({"email": data.email})
+    if not collab or not verify_pw(data.password, collab["password_hash"]):
+        raise HTTPException(401, "Credenziali errate")
+    if collab.get("stato") != "Attivo":
+        raise HTTPException(403, "Account sospeso")
+    token = create_token(collab["id"], "collaboratore")
+    return {"token": token, "user": {k: v for k, v in collab.items() if k not in ("_id", "password_hash")}}
+
+@api_router.get("/collaboratore/profilo")
+async def collaboratore_profilo(user=Depends(get_collaboratore_user)):
+    return user
+
+# ---- Sopralluoghi CRUD ----
+
+@api_router.post("/sopralluoghi")
+async def create_sopralluogo(data: SopralluogoCreate, user=Depends(get_admin_or_collaboratore)):
+    """Create a new sopralluogo and initialize checklist."""
+    collab_id = data.collaboratore_id or user["id"]
+    
+    # Verify collaboratore exists if specified
+    if data.collaboratore_id:
+        collab = await db.collaboratori.find_one({"id": data.collaboratore_id})
+        if not collab:
+            raise HTTPException(404, "Collaboratore non trovato")
+    
+    cond = await db.condomini.find_one({"id": data.condominio_id}, {"_id": 0})
+    if not cond:
+        raise HTTPException(404, "Condominio non trovato")
+    
+    sopralluogo_id = str(uuid.uuid4())
+    
+    # Get collaboratore name
+    if user["_tipo"] == "collaboratore":
+        eseguito_da = f"{user.get('nome', '')} {user.get('cognome', '')}"
+    else:
+        collab = await db.collaboratori.find_one({"id": collab_id})
+        eseguito_da = f"{collab['nome']} {collab['cognome']}" if collab else f"{user.get('nome', '')} {user.get('cognome', '')}"
+    
+    sopralluogo = {
+        "id": sopralluogo_id,
+        "condominio_id": data.condominio_id,
+        "condominio_nome": cond["nome"],
+        "condominio_indirizzo": cond["indirizzo"],
+        "collaboratore_id": collab_id,
+        "eseguito_da": eseguito_da,
+        "data": data.data,
+        "ora_inizio": data.ora_inizio or datetime.now().strftime("%H:%M"),
+        "ora_fine": None,
+        "motivo": data.motivo,
+        "note_generali": data.note_generali,
+        "nota_vocale_generale_id": data.nota_vocale_generale_id,
+        "note_finali": None,
+        "nota_vocale_finale_id": None,
+        "valutazione": None,
+        "stato": "in_corso",
+        "created_at": now_iso()
+    }
+    await db.sopralluoghi.insert_one(sopralluogo)
+    
+    # Initialize checklist items
+    checklist_items = []
+    for i, voce in enumerate(CHECKLIST_VOCI):
+        checklist_items.append({
+            "id": str(uuid.uuid4()),
+            "sopralluogo_id": sopralluogo_id,
+            "voce": voce,
+            "ordine": i,
+            "stato": "non_controllato"  # ok, anomalia, non_controllato
+        })
+    await db.sopralluoghi_checklist.insert_many(checklist_items)
+    
+    # Notify if assigned to someone else
+    if data.collaboratore_id and data.collaboratore_id != user["id"]:
+        await create_notifica(data.collaboratore_id, "Nuovo sopralluogo assegnato",
+            f"Ti è stato assegnato un sopralluogo per {cond['nome']} in data {data.data}", "info")
+    
+    return {k: v for k, v in sopralluogo.items() if k != "_id"}
+
+@api_router.get("/sopralluoghi")
+async def list_sopralluoghi(user=Depends(get_admin_or_collaboratore)):
+    """List sopralluoghi - admin sees all, collaboratore sees only their own."""
+    query = {}
+    if user["_tipo"] == "collaboratore":
+        query = {"collaboratore_id": user["id"]}
+    
+    sopralluoghi = await db.sopralluoghi.find(query, {"_id": 0}).sort("data", -1).to_list(500)
+    
+    # Add checklist summary for each
+    for s in sopralluoghi:
+        checklist = await db.sopralluoghi_checklist.find({"sopralluogo_id": s["id"]}, {"_id": 0}).to_list(50)
+        s["checklist_ok"] = len([c for c in checklist if c["stato"] == "ok"])
+        s["checklist_anomalie"] = len([c for c in checklist if c["stato"] == "anomalia"])
+        s["checklist_non_controllato"] = len([c for c in checklist if c["stato"] == "non_controllato"])
+        s["segnalazioni_create"] = await db.sopralluoghi_anomalie.count_documents({
+            "sopralluogo_id": s["id"], "segnalazione_id": {"$ne": None}
+        })
+    
+    return sopralluoghi
+
+@api_router.get("/sopralluoghi/{sop_id}")
+async def get_sopralluogo(sop_id: str, user=Depends(get_admin_or_collaboratore)):
+    """Get sopralluogo detail with full checklist."""
+    sop = await db.sopralluoghi.find_one({"id": sop_id}, {"_id": 0})
+    if not sop:
+        raise HTTPException(404, "Sopralluogo non trovato")
+    
+    # Check access for collaboratore
+    if user["_tipo"] == "collaboratore" and sop["collaboratore_id"] != user["id"]:
+        raise HTTPException(403, "Non hai accesso a questo sopralluogo")
+    
+    # Get checklist with anomalie
+    checklist = await db.sopralluoghi_checklist.find({"sopralluogo_id": sop_id}, {"_id": 0}).sort("ordine", 1).to_list(50)
+    
+    for item in checklist:
+        if item["stato"] == "anomalia":
+            anomalia = await db.sopralluoghi_anomalie.find_one({"checklist_item_id": item["id"]}, {"_id": 0})
+            if anomalia:
+                # Get photo details
+                if anomalia.get("foto_ids"):
+                    files = await db.uploaded_files.find({"id": {"$in": anomalia["foto_ids"]}}, {"_id": 0}).to_list(20)
+                    anomalia["foto_dettagli"] = files
+                # Get voice note details
+                if anomalia.get("nota_vocale_id"):
+                    vn = await db.uploaded_files.find_one({"id": anomalia["nota_vocale_id"]}, {"_id": 0})
+                    anomalia["nota_vocale_dettagli"] = vn
+                item["anomalia"] = anomalia
+    
+    sop["checklist"] = checklist
+    
+    # Add summary stats
+    sop["checklist_ok"] = len([c for c in checklist if c["stato"] == "ok"])
+    sop["checklist_anomalie"] = len([c for c in checklist if c["stato"] == "anomalia"])
+    sop["checklist_non_controllato"] = len([c for c in checklist if c["stato"] == "non_controllato"])
+    
+    # Get voice notes details
+    if sop.get("nota_vocale_generale_id"):
+        vn = await db.uploaded_files.find_one({"id": sop["nota_vocale_generale_id"]}, {"_id": 0})
+        sop["nota_vocale_generale_dettagli"] = vn
+    if sop.get("nota_vocale_finale_id"):
+        vn = await db.uploaded_files.find_one({"id": sop["nota_vocale_finale_id"]}, {"_id": 0})
+        sop["nota_vocale_finale_dettagli"] = vn
+    
+    return sop
+
+# ---- Checklist Item Update ----
+
+@api_router.put("/sopralluoghi/{sop_id}/checklist/{item_id}")
+async def update_checklist_item(sop_id: str, item_id: str, data: ChecklistItemUpdate, user=Depends(get_admin_or_collaboratore)):
+    """Update a single checklist item state (ok, anomalia, non_controllato)."""
+    sop = await db.sopralluoghi.find_one({"id": sop_id})
+    if not sop:
+        raise HTTPException(404, "Sopralluogo non trovato")
+    if sop["stato"] != "in_corso":
+        raise HTTPException(400, "Il sopralluogo è già completato")
+    if user["_tipo"] == "collaboratore" and sop["collaboratore_id"] != user["id"]:
+        raise HTTPException(403, "Non hai accesso a questo sopralluogo")
+    
+    item = await db.sopralluoghi_checklist.find_one({"id": item_id, "sopralluogo_id": sop_id})
+    if not item:
+        raise HTTPException(404, "Voce checklist non trovata")
+    
+    # If changing from anomalia to something else, remove anomalia record
+    if item["stato"] == "anomalia" and data.stato != "anomalia":
+        await db.sopralluoghi_anomalie.delete_one({"checklist_item_id": item_id})
+    
+    await db.sopralluoghi_checklist.update_one({"id": item_id}, {"$set": {"stato": data.stato}})
+    return {"message": "Stato aggiornato", "stato": data.stato}
+
+# ---- Anomalia CRUD ----
+
+@api_router.post("/sopralluoghi/{sop_id}/checklist/{item_id}/anomalia")
+async def create_anomalia(sop_id: str, item_id: str, data: AnomaliaCreate, user=Depends(get_admin_or_collaboratore)):
+    """Create or update anomalia for a checklist item."""
+    sop = await db.sopralluoghi.find_one({"id": sop_id})
+    if not sop:
+        raise HTTPException(404, "Sopralluogo non trovato")
+    if sop["stato"] != "in_corso":
+        raise HTTPException(400, "Il sopralluogo è già completato")
+    if user["_tipo"] == "collaboratore" and sop["collaboratore_id"] != user["id"]:
+        raise HTTPException(403, "Non hai accesso a questo sopralluogo")
+    
+    item = await db.sopralluoghi_checklist.find_one({"id": item_id, "sopralluogo_id": sop_id})
+    if not item:
+        raise HTTPException(404, "Voce checklist non trovata")
+    
+    # Mark item as anomalia
+    await db.sopralluoghi_checklist.update_one({"id": item_id}, {"$set": {"stato": "anomalia"}})
+    
+    # Check for existing anomalia
+    existing = await db.sopralluoghi_anomalie.find_one({"checklist_item_id": item_id})
+    anomalia_id = existing["id"] if existing else str(uuid.uuid4())
+    
+    anomalia = {
+        "id": anomalia_id,
+        "sopralluogo_id": sop_id,
+        "checklist_item_id": item_id,
+        "voce": item["voce"],
+        "descrizione": data.descrizione,
+        "gravita": data.gravita,
+        "nota_vocale_id": data.nota_vocale_id,
+        "foto_ids": data.foto_ids,
+        "foto_didascalie": data.foto_didascalie,
+        "segnalazione_id": existing.get("segnalazione_id") if existing else None,
+        "created_at": existing.get("created_at", now_iso()) if existing else now_iso(),
+        "updated_at": now_iso()
+    }
+    
+    # Handle segnalazione creation
+    if data.apri_segnalazione and not anomalia.get("segnalazione_id"):
+        if not data.fornitore_id:
+            raise HTTPException(400, "Fornitore obbligatorio per aprire una segnalazione")
+        
+        forn = await db.fornitori.find_one({"id": data.fornitore_id}, {"_id": 0})
+        if not forn:
+            raise HTTPException(404, "Fornitore non trovato")
+        
+        # Create segnalazione
+        seg_id = str(uuid.uuid4())
+        protocollo = f"SEG-{datetime.now().year}-{str(uuid.uuid4())[:6].upper()}"
+        tipologia = data.tipologia_intervento or CHECKLIST_TIPOLOGIA_MAP.get(item["voce"], "Altro")
+        urgenza = data.urgenza_segnalazione or ("Alta" if data.gravita in ("Grave", "Urgente") else "Media")
+        
+        segnalazione = {
+            "id": seg_id,
+            "protocollo": protocollo,
+            "user_id": user["id"],  # Admin/Collaboratore who created it
+            "condominio_id": sop["condominio_id"],
+            "condominio_nome": sop["condominio_nome"],
+            "tipologia": tipologia,
+            "descrizione": f"[Da sopralluogo del {sop['data']}] {data.descrizione}",
+            "urgenza": urgenza,
+            "stato": "Assegnata al fornitore",
+            "allegati": data.foto_ids,
+            "note_admin": data.note_fornitore or "",
+            "fornitore_id": data.fornitore_id,
+            "fornitore_nome": forn["ragione_sociale"],
+            "data_prevista_intervento": data.data_prevista_intervento or "",
+            "sopralluogo_id": sop_id,
+            "created_at": now_iso()
+        }
+        await db.segnalazioni.insert_one(segnalazione)
+        
+        # Create fornitore assignment
+        assegnazione = {
+            "id": str(uuid.uuid4()),
+            "segnalazione_id": seg_id,
+            "fornitore_id": data.fornitore_id,
+            "fornitore_nome": forn["ragione_sociale"],
+            "note_admin": data.note_fornitore or "",
+            "data_prevista": data.data_prevista_intervento or "",
+            "stato": "assegnato",
+            "assigned_at": now_iso()
+        }
+        await db.fornitore_segnalazioni.insert_one(assegnazione)
+        
+        # Timeline
+        await add_timeline_event(seg_id, "creata_da_sopralluogo", user["id"], user["_tipo"], {
+            "sopralluogo_id": sop_id, "voce_checklist": item["voce"],
+            "rilevata_da": sop["eseguito_da"]
+        })
+        await add_timeline_event(seg_id, "assegnata_fornitore", user["id"], user["_tipo"], {
+            "fornitore": forn["ragione_sociale"]
+        })
+        
+        # Notify fornitore
+        await create_notifica(data.fornitore_id, "Nuovo incarico da sopralluogo",
+            f"Nuovo incarico: {tipologia} – {sop['condominio_nome']}. Rilevato durante sopralluogo.", "warning")
+        
+        anomalia["segnalazione_id"] = seg_id
+        anomalia["segnalazione_protocollo"] = protocollo
+    
+    if existing:
+        await db.sopralluoghi_anomalie.replace_one({"id": anomalia_id}, anomalia)
+    else:
+        await db.sopralluoghi_anomalie.insert_one(anomalia)
+    
+    return {k: v for k, v in anomalia.items() if k != "_id"}
+
+# ---- Close Sopralluogo ----
+
+@api_router.post("/sopralluoghi/{sop_id}/chiudi")
+async def close_sopralluogo(sop_id: str, data: SopralluogoClose, user=Depends(get_admin_or_collaboratore)):
+    """Complete and close a sopralluogo."""
+    sop = await db.sopralluoghi.find_one({"id": sop_id})
+    if not sop:
+        raise HTTPException(404, "Sopralluogo non trovato")
+    if sop["stato"] != "in_corso":
+        raise HTTPException(400, "Il sopralluogo è già completato")
+    if user["_tipo"] == "collaboratore" and sop["collaboratore_id"] != user["id"]:
+        raise HTTPException(403, "Non hai accesso a questo sopralluogo")
+    
+    await db.sopralluoghi.update_one({"id": sop_id}, {"$set": {
+        "ora_fine": data.ora_fine or datetime.now().strftime("%H:%M"),
+        "note_finali": data.note_finali,
+        "nota_vocale_finale_id": data.nota_vocale_finale_id,
+        "valutazione": data.valutazione,
+        "stato": "completato",
+        "completed_at": now_iso()
+    }})
+    
+    # Notify admin if completed by collaboratore
+    if user["_tipo"] == "collaboratore":
+        checklist = await db.sopralluoghi_checklist.find({"sopralluogo_id": sop_id}, {"_id": 0}).to_list(50)
+        anomalie_count = len([c for c in checklist if c["stato"] == "anomalia"])
+        admins = await db.users.find({"ruolo": "admin"}, {"id": 1}).to_list(50)
+        for a in admins:
+            await create_notifica(a["id"], "Sopralluogo completato",
+                f"Sopralluogo {sop['condominio_nome']} completato da {sop['eseguito_da']} — {anomalie_count} anomalie rilevate", "info")
+    
+    return {"message": "Sopralluogo completato"}
+
+# ---- Reopen Sopralluogo (Admin only) ----
+
+@api_router.post("/sopralluoghi/{sop_id}/riapri")
+async def reopen_sopralluogo(sop_id: str, user=Depends(get_admin_user)):
+    """Admin can reopen a completed sopralluogo for editing."""
+    await db.sopralluoghi.update_one({"id": sop_id}, {"$set": {
+        "stato": "in_corso", "completed_at": None
+    }})
+    return {"message": "Sopralluogo riaperto"}
+
+# ---- Delete Sopralluogo (Admin only) ----
+
+@api_router.delete("/sopralluoghi/{sop_id}")
+async def delete_sopralluogo(sop_id: str, user=Depends(get_admin_user)):
+    """Delete a sopralluogo and its related data."""
+    await db.sopralluoghi.delete_one({"id": sop_id})
+    await db.sopralluoghi_checklist.delete_many({"sopralluogo_id": sop_id})
+    await db.sopralluoghi_anomalie.delete_many({"sopralluogo_id": sop_id})
+    return {"message": "Sopralluogo eliminato"}
+
+# ---- Sopralluoghi per Condominio ----
+
+@api_router.get("/condomini/{cond_id}/sopralluoghi")
+async def condominio_sopralluoghi(cond_id: str, user=Depends(get_admin_or_collaboratore)):
+    """Get all sopralluoghi for a specific condominio."""
+    sopralluoghi = await db.sopralluoghi.find({"condominio_id": cond_id}, {"_id": 0}).sort("data", -1).to_list(100)
+    for s in sopralluoghi:
+        checklist = await db.sopralluoghi_checklist.find({"sopralluogo_id": s["id"]}, {"_id": 0}).to_list(50)
+        s["checklist_ok"] = len([c for c in checklist if c["stato"] == "ok"])
+        s["checklist_anomalie"] = len([c for c in checklist if c["stato"] == "anomalia"])
+        s["checklist_non_controllato"] = len([c for c in checklist if c["stato"] == "non_controllato"])
+    return sopralluoghi
+
 @api_router.post("/seed")
 async def seed_data():
     admin = await db.users.find_one({"email": "admin@tardugno.it"})
