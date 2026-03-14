@@ -77,6 +77,13 @@ export default function Admin() {
   const [newForn, setNewForn] = useState({ ragione_sociale: '', partita_iva: '', codice_fiscale: '', settori: [] as string[], telefono: '', email: '', indirizzo: '', iban: '', stato: 'Attivo', password: '' });
   const [showAssegnaFornModal, setShowAssegnaFornModal] = useState<any>(null); // segnalazione to assign
   const [assegnaFornForm, setAssegnaFornForm] = useState({ fornitore_id: '', note_admin: '', data_prevista: '' });
+  // Segnalazione create/edit states
+  const [showNewSegModal, setShowNewSegModal] = useState(false);
+  const [isEditingSeg, setIsEditingSeg] = useState(false);
+  const [editingSegId, setEditingSegId] = useState<string | null>(null);
+  const [segForm, setSegForm] = useState({ condominio_id: '', tipologia: '', descrizione: '', urgenza: 'Media', note_admin: '' });
+  const [segMediaFiles, setSegMediaFiles] = useState<MediaFile[]>([]);
+  const [segUploadProgress, setSegUploadProgress] = useState('');
 
   const loadAll = useCallback(async () => {
     setLoading(true);
