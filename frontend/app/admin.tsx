@@ -597,6 +597,15 @@ export default function Admin() {
 
     setLoading(true);
     try {
+      // First verify sopralluogo is still in_corso
+      const currentSop = await api.getSopralluogo(token!, showAnomaliaModal.sopralluogo.id);
+      if (currentSop.stato !== 'in_corso') {
+        Alert.alert('Attenzione', 'Il sopralluogo è stato completato. Non è più possibile modificare le anomalie.');
+        setShowAnomaliaModal(null);
+        setShowSopralluogoDetail(currentSop);
+        return;
+      }
+
       // Upload photos first
       const fotoIds: string[] = [];
       for (const photo of anomaliaPhotos) {
@@ -611,7 +620,7 @@ export default function Admin() {
       // Upload voice note if present
       let voiceNoteId: string | undefined;
       if (anomaliaVoiceNote) {
-        const uploaded = await api.uploadFile(token!, anomaliaVoiceNote.uri, anomaliaVoiceNote.filename, 'audio/m4a');
+        const uploaded = await api.uploadFile(token!, anomaliaVoiceNote.uri, anomaliaVoiceNote.filename, 'audio/x-m4a');
         voiceNoteId = uploaded.id;
       }
 
