@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 
 # Backend URL from frontend/.env 
-BASE_URL = "https://studio-condomini.preview.emergentagent.com/api"
+BASE_URL = "https://condo-manager-40.preview.emergentagent.com/api"
 
 def log(message):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")

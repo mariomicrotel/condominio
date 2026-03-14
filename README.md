@@ -409,7 +409,7 @@ JWT_SECRET="tua-chiave-segreta-qui"
 ### Frontend (`frontend/.env`)
 
 ```env
-EXPO_TUNNEL_SUBDOMAIN=studio-condomini
+EXPO_TUNNEL_SUBDOMAIN=condo-manager-40
 EXPO_PACKAGER_HOSTNAME=https://tuo-dominio.com
 EXPO_PUBLIC_BACKEND_URL=https://tuo-dominio.com
 ```
