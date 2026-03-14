@@ -520,7 +520,57 @@ EXPO_PUBLIC_BACKEND_URL=https://tuo-dominio.com
   "urgenza": "Alta",
   "stato": "Inviata",
   "allegati": ["file_uuid_1", "file_uuid_2"],
+  "fornitore_id": "uuid (opzionale)",
+  "note_admin": "Nota interna",
   "created_at": "2026-03-13T15:00:00Z"
+}
+```
+
+### Modello Fornitore (NUOVO)
+
+```json
+{
+  "id": "uuid",
+  "ragione_sociale": "Idraulica Rossi Srl",
+  "email": "info@idraulicarossi.it",
+  "telefono": "+39 089 123456",
+  "p_iva": "01234567890",
+  "iban": "IT60X0542811101000000123456",
+  "indirizzo": "Via Roma, 10 - Salerno",
+  "settori_competenza": ["Idraulica", "Riscaldamento"],
+  "note": "Pronto intervento 24h",
+  "stato": "Attivo",
+  "created_at": "2026-01-15T10:00:00Z"
+}
+```
+
+### Modello Intervento (NUOVO)
+
+```json
+{
+  "id": "uuid",
+  "segnalazione_id": "uuid",
+  "fornitore_id": "uuid",
+  "stato": "Assegnato",
+  "note_admin": "Urgente, chiamare il mattino",
+  "data_prevista": "2026-03-20",
+  "data_assegnazione": "2026-03-14T09:00:00Z",
+  "data_completamento": null
+}
+```
+
+### Modello Rapportino (NUOVO)
+
+```json
+{
+  "id": "uuid",
+  "intervento_id": "uuid",
+  "data_intervento": "2026-03-20",
+  "descrizione_lavori": "Sostituzione guarnizione rubinetto",
+  "esito": "Risolto",
+  "materiali_utilizzati": "Guarnizione universale, silicone",
+  "foto_ids": ["file_uuid_1", "file_uuid_2"],
+  "created_at": "2026-03-20T16:30:00Z"
 }
 ```
 
