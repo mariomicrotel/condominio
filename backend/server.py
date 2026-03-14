@@ -1374,10 +1374,14 @@ async def get_sopralluogo(sop_id: str, user=Depends(get_admin_or_collaboratore))
                 if anomalia.get("foto_ids"):
                     files = await db.uploaded_files.find({"id": {"$in": anomalia["foto_ids"]}}, {"_id": 0}).to_list(20)
                     anomalia["foto_dettagli"] = files
-                # Get voice note details
-                if anomalia.get("nota_vocale_id"):
+                # Get voice notes details (multiple)
+                if anomalia.get("nota_vocale_ids"):
+                    vns = await db.uploaded_files.find({"id": {"$in": anomalia["nota_vocale_ids"]}}, {"_id": 0}).to_list(20)
+                    anomalia["nota_vocale_dettagli"] = vns
+                # Legacy support for single voice note
+                elif anomalia.get("nota_vocale_id"):
                     vn = await db.uploaded_files.find_one({"id": anomalia["nota_vocale_id"]}, {"_id": 0})
-                    anomalia["nota_vocale_dettagli"] = vn
+                    anomalia["nota_vocale_dettagli"] = [vn] if vn else []
                 item["anomalia"] = anomalia
     
     sop["checklist"] = checklist
