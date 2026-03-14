@@ -105,6 +105,18 @@
 user_problem_statement: "App for Studio Tardugno & Bonifacio - accounting and condominium administration firm. Features: auth, admin panel (config, notifications, trasmissioni, estratto conto, CSV export), resident dashboard with fault reports, appointments, document requests, bulletin board."
 
 backend:
+  - task: "Admin create/edit segnalazioni endpoints (POST /admin/segnalazioni, PUT /admin/segnalazioni/{id})"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NEW: Admin can create segnalazioni from scratch using POST /api/admin/segnalazioni and modify existing ones using PUT /api/admin/segnalazioni/{id}. The PUT endpoint now accepts tipologia, descrizione, urgenza, note_admin, and allegati fields for full content modification."
+
   - task: "Auth endpoints (register, login, profile)"
     implemented: true
     working: true
