@@ -647,21 +647,31 @@ export default function Admin() {
   };
 
   const closeSopralluogoHandler = async (sopId: string, valutazione: string, note: string) => {
-    setLoading(true);
-    try {
-      await api.closeSopralluogo(token!, sopId, { 
-        valutazione, 
-        note_finali: note,
-        ora_fine: new Date().toTimeString().slice(0, 5)
-      });
-      setShowSopralluogoDetail(null);
-      loadAll();
-      Alert.alert('Completato', 'Sopralluogo chiuso con successo');
-    } catch (e: any) {
-      Alert.alert('Errore', e.message);
-    } finally {
-      setLoading(false);
-    }
+    // Confirmation dialog to prevent accidental closes
+    Alert.alert(
+      'Completare Sopralluogo?',
+      'Una volta completato non potrai più modificare la checklist o aggiungere anomalie. Vuoi procedere?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        { text: 'Completa', style: 'default', onPress: async () => {
+          setLoading(true);
+          try {
+            await api.closeSopralluogo(token!, sopId, { 
+              valutazione, 
+              note_finali: note,
+              ora_fine: new Date().toTimeString().slice(0, 5)
+            });
+            setShowSopralluogoDetail(null);
+            loadAll();
+            Alert.alert('Completato', 'Sopralluogo chiuso con successo');
+          } catch (e: any) {
+            Alert.alert('Errore', e.message);
+          } finally {
+            setLoading(false);
+          }
+        }},
+      ]
+    );
   };
 
   const deleteSopralluogoHandler = (sopId: string, nome: string) => {
