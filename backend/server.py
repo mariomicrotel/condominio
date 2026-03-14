@@ -222,7 +222,7 @@ class ChecklistItemUpdate(BaseModel):
 class AnomaliaCreate(BaseModel):
     descrizione: str
     gravita: str = "Moderata"  # Lieve, Moderata, Grave, Urgente
-    nota_vocale_id: Optional[str] = None
+    nota_vocale_ids: List[str] = []  # Multiple voice notes
     foto_ids: List[str] = []  # list of file IDs
     foto_didascalie: List[str] = []  # captions for photos
     apri_segnalazione: bool = False
