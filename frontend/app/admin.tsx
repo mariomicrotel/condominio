@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { Audio } from 'expo-av';
 import { useAuth } from '../src/context/AuthContext';
 import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
