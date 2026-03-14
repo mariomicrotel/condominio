@@ -1900,12 +1900,15 @@ export default function Admin() {
                   </TouchableOpacity>
                 </View>
               ))}
-              {/* Add new voice note */}
+              {/* Add new voice note - key forces remount after each recording */}
               <VoiceRecorder
+                key={`voice-recorder-${voiceRecorderKey}`}
                 label=""
                 compact
                 onRecordingComplete={(uri, filename, duration) => {
                   setAnomaliaVoiceNotes(prev => [...prev, { uri, filename, duration }]);
+                  // Increment key to reset the VoiceRecorder for next recording
+                  setVoiceRecorderKey(prev => prev + 1);
                 }}
                 onDeleteRecording={() => {}}
               />
