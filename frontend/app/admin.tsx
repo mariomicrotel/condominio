@@ -35,6 +35,8 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 ];
 
 const QUALITA_OPT = ['Proprietario', 'Inquilino', 'Delegato', 'Altro'];
+const TIPOLOGIE = ['Guasto idraulico', 'Guasto elettrico', 'Ascensore', 'Infiltrazioni', 'Parti comuni', 'Pulizia', 'Sicurezza', 'Altro'];
+const URGENZE = ['Bassa', 'Media', 'Alta', 'Urgente'];
 
 const STAT_ITEMS = [
   { key: 'utenti', label: 'Utenti', field: 'totale_utenti', color: '#3B82F6', icon: 'people', tab: 'utenti' as Tab },
