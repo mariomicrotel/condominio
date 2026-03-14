@@ -517,6 +517,233 @@ export default function Admin() {
     }
   };
 
+  // ========== SOPRALLUOGHI FUNCTIONS ==========
+
+  const resetSopralluogoForm = () => {
+    setSopralluogoForm({ condominio_id: '', data: new Date().toISOString().split('T')[0], ora_inizio: '', motivo: 'Controllo periodico', note_generali: '', collaboratore_id: '' });
+  };
+
+  const createSopralluogoHandler = async () => {
+    if (!sopralluogoForm.condominio_id) {
+      Alert.alert('Attenzione', 'Seleziona un condominio');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await api.createSopralluogo(token!, {
+        condominio_id: sopralluogoForm.condominio_id,
+        data: sopralluogoForm.data || new Date().toISOString().split('T')[0],
+        ora_inizio: sopralluogoForm.ora_inizio || new Date().toTimeString().slice(0, 5),
+        motivo: sopralluogoForm.motivo,
+        note_generali: sopralluogoForm.note_generali,
+        collaboratore_id: sopralluogoForm.collaboratore_id || undefined,
+      });
+      setShowNewSopralluogo(false);
+      resetSopralluogoForm();
+      loadAll();
+      // Open the sopralluogo detail for editing
+      const full = await api.getSopralluogo(token!, result.id);
+      setShowSopralluogoDetail(full);
+      Alert.alert('Creato', 'Sopralluogo avviato! Compila la checklist.');
+    } catch (e: any) {
+      Alert.alert('Errore', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSopralluogoDetail = async (id: string) => {
+    setLoading(true);
+    try {
+      const full = await api.getSopralluogo(token!, id);
+      setShowSopralluogoDetail(full);
+    } catch (e: any) {
+      Alert.alert('Errore', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateChecklistItemHandler = async (sopId: string, itemId: string, stato: string) => {
+    try {
+      await api.updateChecklistItem(token!, sopId, itemId, stato);
+      // Refresh detail
+      const full = await api.getSopralluogo(token!, sopId);
+      setShowSopralluogoDetail(full);
+      
+      if (stato === 'anomalia') {
+        // Open anomalia modal
+        const item = full.checklist.find((c: any) => c.id === itemId);
+        setShowAnomaliaModal({ sopralluogo: full, item });
+        setAnomaliaForm({ descrizione: '', gravita: 'Moderata', foto_ids: [], apri_segnalazione: false, fornitore_id: '', tipologia_intervento: '', urgenza_segnalazione: '', note_fornitore: '' });
+        setAnomaliaPhotos([]);
+      }
+    } catch (e: any) {
+      Alert.alert('Errore', e.message);
+    }
+  };
+
+  const saveAnomaliaHandler = async () => {
+    if (!anomaliaForm.descrizione.trim()) {
+      Alert.alert('Attenzione', 'Inserisci una descrizione');
+      return;
+    }
+    if (anomaliaForm.apri_segnalazione && !anomaliaForm.fornitore_id) {
+      Alert.alert('Attenzione', 'Seleziona un fornitore per aprire la segnalazione');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Upload photos first
+      const fotoIds: string[] = [];
+      for (const photo of anomaliaPhotos) {
+        if (!photo.uploadedId) {
+          const uploaded = await api.uploadFile(token!, photo.uri, photo.filename, photo.mimeType);
+          fotoIds.push(uploaded.id);
+        } else {
+          fotoIds.push(photo.uploadedId);
+        }
+      }
+
+      await api.createAnomalia(token!, showAnomaliaModal.sopralluogo.id, showAnomaliaModal.item.id, {
+        descrizione: anomaliaForm.descrizione,
+        gravita: anomaliaForm.gravita,
+        foto_ids: fotoIds,
+        apri_segnalazione: anomaliaForm.apri_segnalazione,
+        fornitore_id: anomaliaForm.fornitore_id || undefined,
+        tipologia_intervento: anomaliaForm.tipologia_intervento || undefined,
+        urgenza_segnalazione: anomaliaForm.urgenza_segnalazione || undefined,
+        note_fornitore: anomaliaForm.note_fornitore || undefined,
+      });
+
+      setShowAnomaliaModal(null);
+      // Refresh sopralluogo
+      const full = await api.getSopralluogo(token!, showAnomaliaModal.sopralluogo.id);
+      setShowSopralluogoDetail(full);
+      
+      if (anomaliaForm.apri_segnalazione) {
+        Alert.alert('Salvato', 'Anomalia salvata e segnalazione creata con fornitore assegnato!');
+      } else {
+        Alert.alert('Salvato', 'Anomalia salvata');
+      }
+      loadAll();
+    } catch (e: any) {
+      Alert.alert('Errore', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeSopralluogoHandler = async (sopId: string, valutazione: string, note: string) => {
+    setLoading(true);
+    try {
+      await api.closeSopralluogo(token!, sopId, { 
+        valutazione, 
+        note_finali: note,
+        ora_fine: new Date().toTimeString().slice(0, 5)
+      });
+      setShowSopralluogoDetail(null);
+      loadAll();
+      Alert.alert('Completato', 'Sopralluogo chiuso con successo');
+    } catch (e: any) {
+      Alert.alert('Errore', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteSopralluogoHandler = (sopId: string, nome: string) => {
+    Alert.alert('Elimina', `Eliminare il sopralluogo di "${nome}"?`, [
+      { text: 'Annulla' },
+      { text: 'Elimina', style: 'destructive', onPress: async () => {
+        try {
+          await api.deleteSopralluogo(token!, sopId);
+          setShowSopralluogoDetail(null);
+          loadAll();
+        } catch (e: any) { Alert.alert('Errore', e.message); }
+      }},
+    ]);
+  };
+
+  // Pick photo for anomalia
+  const pickAnomaliaPhoto = async () => {
+    if (anomaliaPhotos.length >= 5) {
+      Alert.alert('Limite raggiunto', 'Puoi allegare massimo 5 foto per anomalia');
+      return;
+    }
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permesso negato', 'Concedi i permessi per la fotocamera');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (result.canceled) return;
+    
+    const asset = result.assets[0];
+    setAnomaliaPhotos(prev => [...prev, {
+      uri: asset.uri,
+      filename: asset.fileName || `anomalia_${Date.now()}.jpg`,
+      mimeType: asset.mimeType || 'image/jpeg',
+      size: asset.fileSize,
+      type: 'image',
+    }]);
+  };
+
+  const removeAnomaliaPhoto = (index: number) => {
+    setAnomaliaPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // ========== COLLABORATORI FUNCTIONS ==========
+
+  const createCollaboratoreHandler = async () => {
+    if (!collabForm.nome.trim() || !collabForm.cognome.trim() || !collabForm.email.trim() || !collabForm.password.trim()) {
+      Alert.alert('Attenzione', 'Compila nome, cognome, email e password');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.createCollaboratore(token!, collabForm);
+      setShowNewCollaboratore(false);
+      setCollabForm({ nome: '', cognome: '', email: '', password: '', telefono: '', qualifica: '', stato: 'Attivo' });
+      loadAll();
+      Alert.alert('Creato', 'Collaboratore aggiunto');
+    } catch (e: any) {
+      Alert.alert('Errore', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteCollaboratoreHandler = (id: string, nome: string) => {
+    Alert.alert('Elimina', `Eliminare "${nome}"?`, [
+      { text: 'Annulla' },
+      { text: 'Elimina', style: 'destructive', onPress: async () => {
+        try {
+          await api.deleteCollaboratore(token!, id);
+          loadAll();
+        } catch (e: any) { Alert.alert('Errore', e.message); }
+      }},
+    ]);
+  };
+
+  // Get semaforo color
+  const getSemaforoColor = (stato: string) => {
+    switch (stato) {
+      case 'ok': return '#22C55E';
+      case 'anomalia': return '#F59E0B';
+      default: return '#9CA3AF';
+    }
+  };
+
+  const getSemaforoIcon = (stato: string) => {
+    switch (stato) {
+      case 'ok': return 'checkmark-circle';
+      case 'anomalia': return 'alert-circle';
+      default: return 'ellipse-outline';
+    }
+  };
+
   const handleLogout = () => {
     Alert.alert('Esci', 'Vuoi uscire?', [
       { text: 'Annulla' },
