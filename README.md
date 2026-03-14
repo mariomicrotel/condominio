@@ -93,6 +93,7 @@ L'app consente ai **condomini** (residenti) di interagire con lo studio e ai **a
 | **Checklist 25 Voci** | Verifica standardizzata: ascensore, balconi, impianti, pulizia, etc. |
 | **Sistema Semaforo** | 🟢 OK, 🟡 Anomalia, ⚪ Non controllato per ogni voce |
 | **Documentazione Anomalie** | Descrizione, gravità, foto per ogni anomalia rilevata |
+| **Note Vocali** | **NUOVO**: Registra note vocali per ogni anomalia (usando expo-av) |
 | **Creazione Segnalazione** | Apri segnalazione automatica da anomalia con fornitore assegnato |
 | **Chiusura Sopralluogo** | Valutazione generale, note finali, timestamp completamento |
 | **Storico Sopralluoghi** | Lista con riepilogo semafori per condominio |
