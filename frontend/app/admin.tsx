@@ -709,6 +709,13 @@ export default function Admin() {
     const sopId = showAnomaliaModal?.sopralluogo?.id;
     setShowAnomaliaModal(null);
     setAnomaliaVoiceNotes([]);
+    // Stop any playing voice note
+    if (voiceNoteSound) {
+      await voiceNoteSound.unloadAsync();
+      setVoiceNoteSound(null);
+    }
+    setPlayingVoiceNoteIndex(null);
+    
     if (sopId) {
       try {
         const full = await api.getSopralluogo(token!, sopId);
@@ -717,6 +724,43 @@ export default function Admin() {
         // If error, just reload all
         loadAll();
       }
+    }
+  };
+
+  // Play/stop voice note
+  const playVoiceNote = async (uri: string, index: number) => {
+    try {
+      // If same note is playing, stop it
+      if (playingVoiceNoteIndex === index && voiceNoteSound) {
+        await voiceNoteSound.stopAsync();
+        await voiceNoteSound.unloadAsync();
+        setVoiceNoteSound(null);
+        setPlayingVoiceNoteIndex(null);
+        return;
+      }
+      
+      // Stop any currently playing sound
+      if (voiceNoteSound) {
+        await voiceNoteSound.stopAsync();
+        await voiceNoteSound.unloadAsync();
+      }
+      
+      // Load and play new sound
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true },
+        (status: any) => {
+          if (status.didJustFinish) {
+            setPlayingVoiceNoteIndex(null);
+            setVoiceNoteSound(null);
+          }
+        }
+      );
+      setVoiceNoteSound(sound);
+      setPlayingVoiceNoteIndex(index);
+    } catch (e) {
+      console.error('Error playing voice note:', e);
+      Alert.alert('Errore', 'Impossibile riprodurre la nota vocale');
     }
   };
 
