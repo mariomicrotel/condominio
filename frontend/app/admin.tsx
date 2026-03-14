@@ -9,6 +9,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
 import { StatusBadge, PrimaryButton, PickerSelect } from '../src/components/SharedComponents';
+import { VoiceRecorder } from '../src/components/VoiceRecorder';
 
 // Media file interface for uploads
 interface MediaFile {
