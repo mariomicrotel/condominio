@@ -329,6 +329,26 @@ Tutti gli endpoint sono prefissati con `/api`.
 | `POST` | `/api/fornitore/rapportino/{id}` | Invia rapportino lavori | Fornitore |
 | `GET` | `/api/fornitore/profilo` | Profilo fornitore | Fornitore |
 
+### Collaboratori & Sopralluoghi (NUOVO)
+
+| Metodo | Endpoint | Descrizione | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/api/admin/collaboratori` | Crea collaboratore | Admin |
+| `GET` | `/api/admin/collaboratori` | Lista collaboratori | Admin |
+| `PUT` | `/api/admin/collaboratori/{id}` | Modifica collaboratore | Admin |
+| `DELETE` | `/api/admin/collaboratori/{id}` | Elimina collaboratore | Admin |
+| `POST` | `/api/collaboratore/login` | Login collaboratore | No |
+| `GET` | `/api/collaboratore/profilo` | Profilo collaboratore | Collaboratore |
+| `POST` | `/api/sopralluoghi` | Crea sopralluogo | Admin/Collab |
+| `GET` | `/api/sopralluoghi` | Lista sopralluoghi | Admin/Collab |
+| `GET` | `/api/sopralluoghi/{id}` | Dettaglio con checklist | Admin/Collab |
+| `PUT` | `/api/sopralluoghi/{id}/checklist/{item_id}` | Aggiorna stato voce | Admin/Collab |
+| `POST` | `/api/sopralluoghi/{id}/checklist/{item_id}/anomalia` | Crea/aggiorna anomalia | Admin/Collab |
+| `POST` | `/api/sopralluoghi/{id}/chiudi` | Chiudi sopralluogo | Admin/Collab |
+| `POST` | `/api/sopralluoghi/{id}/riapri` | Riapri sopralluogo | Admin |
+| `DELETE` | `/api/sopralluoghi/{id}` | Elimina sopralluogo | Admin |
+| `GET` | `/api/condomini/{id}/sopralluoghi` | Sopralluoghi per condominio | Admin/Collab |
+
 ### Pannello Admin
 
 | Metodo | Endpoint | Descrizione |
