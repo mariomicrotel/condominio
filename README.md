@@ -60,12 +60,14 @@ L'app consente ai **condomini** (residenti) di interagire con lo studio e ai **a
 |---|---|
 | **Dashboard** | Riepilogo con statistiche (utenti, condomini, segnalazioni, appuntamenti, avvisi) — card cliccabili per navigazione rapida |
 | **Gestione Condomini** | CRUD completo dei condomini |
-| **Gestione Utenti** | Visualizza utenti registrati, associali a condomini per abilitarli, disassociali |
+| **Gestione Utenti** | Visualizza utenti registrati, **filtro per condominio**, associa/disassocia utenti, **crea collaboratori studio** |
+| **Gestione Collaboratori** | Crea collaboratori dello studio direttamente dal tab Utenti, visualizza statistiche sopralluoghi |
 | **Segnalazioni** | Visualizza, cambia stato (Presa in carico, In lavorazione, Risolta), **crea nuove segnalazioni**, **modifica segnalazioni esistenti**, visualizza allegati |
-| **Creazione Segnalazioni** | **NUOVA**: L'admin può creare segnalazioni da zero selezionando condominio, tipologia, descrizione, urgenza e allegando file |
-| **Modifica Segnalazioni** | **NUOVA**: L'admin può modificare tipologia, descrizione, urgenza e allegati di segnalazioni esistenti prima di assegnarle |
-| **Gestione Fornitori** | **NUOVA**: CRUD completo dei fornitori esterni (idraulici, elettricisti, ecc.) con anagrafica completa |
-| **Assegnazione Fornitori** | **NUOVA**: Assegna segnalazioni a fornitori specificando note e data prevista intervento |
+| **Creazione Segnalazioni** | L'admin può creare segnalazioni da zero selezionando condominio, tipologia, descrizione, urgenza e allegando file |
+| **Modifica Segnalazioni** | L'admin può modificare tipologia, descrizione, urgenza e allegati di segnalazioni esistenti prima di assegnarle |
+| **Gestione Fornitori** | CRUD completo dei fornitori esterni (idraulici, elettricisti, ecc.) con anagrafica completa |
+| **Assegnazione Fornitori** | Assegna segnalazioni a fornitori specificando note e data prevista intervento |
+| **Sopralluoghi** | **NUOVO**: Gestione completa sopralluoghi con checklist 25 voci, anomalie, note vocali multiple |
 | **Appuntamenti** | Conferma, completa o annulla appuntamenti |
 | **Avvisi / Bacheca** | Pubblica avvisi per specifici condomini o per tutti |
 | **Trasmissioni Documenti** | Gestisci documenti ricevuti dai condomini, aggiorna stato |
