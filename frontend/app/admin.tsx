@@ -571,13 +571,31 @@ export default function Admin() {
     // If setting to "anomalia", open the modal FIRST without saving
     if (stato === 'anomalia') {
       // Find the item in the current sopralluogo detail
-      const item = showSopralluogoDetail?.checklist?.find((c: any) => c.id === itemId);
-      if (item) {
-        // Open modal for documenting the anomaly
-        setShowAnomaliaModal({ sopralluogo: showSopralluogoDetail, item, isNew: true });
-        setAnomaliaForm({ descrizione: '', gravita: 'Moderata', foto_ids: [], apri_segnalazione: false, fornitore_id: '', tipologia_intervento: '', urgenza_segnalazione: '', note_fornitore: '' });
+      const checklist = showSopralluogoDetail?.checklist || [];
+      const foundItem = checklist.find((c: any) => c.id === itemId);
+      
+      if (foundItem) {
+        // Reset form and open modal for documenting the anomaly
+        setAnomaliaForm({ 
+          descrizione: '', 
+          gravita: 'Moderata', 
+          foto_ids: [], 
+          apri_segnalazione: false, 
+          fornitore_id: '', 
+          tipologia_intervento: '', 
+          urgenza_segnalazione: '', 
+          note_fornitore: '' 
+        });
         setAnomaliaPhotos([]);
         setAnomaliaVoiceNotes([]);
+        setVoiceRecorderKey(prev => prev + 1); // Reset voice recorder
+        
+        // Set modal data AFTER resetting form
+        setShowAnomaliaModal({ 
+          sopralluogo: showSopralluogoDetail, 
+          item: foundItem, 
+          isNew: true 
+        });
       }
       return; // Don't save yet - will save when user clicks "Salva Anomalia"
     }
