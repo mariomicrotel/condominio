@@ -293,6 +293,26 @@ Tutti gli endpoint sono prefissati con `/api`.
 |--------|----------|-------------|------|
 | `GET` | `/api/config/public` | Info pubbliche studio | No |
 
+### Gestione Fornitori (NUOVO)
+
+| Metodo | Endpoint | Descrizione | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/api/admin/fornitori` | Crea nuovo fornitore | Admin |
+| `GET` | `/api/admin/fornitori` | Lista fornitori | Admin |
+| `PUT` | `/api/admin/fornitori/{id}` | Modifica fornitore | Admin |
+| `DELETE` | `/api/admin/fornitori/{id}` | Elimina fornitore | Admin |
+
+### Portale Fornitore (NUOVO)
+
+| Metodo | Endpoint | Descrizione | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/api/fornitore/login` | Login fornitore | No |
+| `GET` | `/api/fornitore/dashboard` | Statistiche interventi | Fornitore |
+| `GET` | `/api/fornitore/interventi` | Lista interventi assegnati | Fornitore |
+| `GET` | `/api/fornitore/interventi/{id}` | Dettaglio intervento | Fornitore |
+| `POST` | `/api/fornitore/rapportino/{id}` | Invia rapportino lavori | Fornitore |
+| `GET` | `/api/fornitore/profilo` | Profilo fornitore | Fornitore |
+
 ### Pannello Admin
 
 | Metodo | Endpoint | Descrizione |
