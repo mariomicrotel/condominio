@@ -567,19 +567,26 @@ export default function Admin() {
   };
 
   const updateChecklistItemHandler = async (sopId: string, itemId: string, stato: string) => {
+    // If setting to "anomalia", open the modal FIRST without saving
+    if (stato === 'anomalia') {
+      // Find the item in the current sopralluogo detail
+      const item = showSopralluogoDetail?.checklist?.find((c: any) => c.id === itemId);
+      if (item) {
+        // Open modal for documenting the anomaly
+        setShowAnomaliaModal({ sopralluogo: showSopralluogoDetail, item, isNew: true });
+        setAnomaliaForm({ descrizione: '', gravita: 'Moderata', foto_ids: [], apri_segnalazione: false, fornitore_id: '', tipologia_intervento: '', urgenza_segnalazione: '', note_fornitore: '' });
+        setAnomaliaPhotos([]);
+        setAnomaliaVoiceNotes([]);
+      }
+      return; // Don't save yet - will save when user clicks "Salva Anomalia"
+    }
+    
+    // For "ok" and "non_controllato", save immediately
     try {
       await api.updateChecklistItem(token!, sopId, itemId, stato);
       // Refresh detail
       const full = await api.getSopralluogo(token!, sopId);
       setShowSopralluogoDetail(full);
-      
-      if (stato === 'anomalia') {
-        // Open anomalia modal
-        const item = full.checklist.find((c: any) => c.id === itemId);
-        setShowAnomaliaModal({ sopralluogo: full, item });
-        setAnomaliaForm({ descrizione: '', gravita: 'Moderata', foto_ids: [], apri_segnalazione: false, fornitore_id: '', tipologia_intervento: '', urgenza_segnalazione: '', note_fornitore: '' });
-        setAnomaliaPhotos([]);
-      }
     } catch (e: any) {
       Alert.alert('Errore', e.message);
     }
