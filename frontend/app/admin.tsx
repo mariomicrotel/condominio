@@ -3,10 +3,22 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../src/context/AuthContext';
 import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
 import { StatusBadge, PrimaryButton, PickerSelect } from '../src/components/SharedComponents';
+
+// Media file interface for uploads
+interface MediaFile {
+  uri: string;
+  filename: string;
+  mimeType: string;
+  size?: number;
+  type: 'image' | 'video' | 'pdf';
+  uploadedId?: string;
+}
 
 type Tab = 'dashboard' | 'condomini' | 'utenti' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'fornitori' | 'config';
 
