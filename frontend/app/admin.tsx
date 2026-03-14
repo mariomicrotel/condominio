@@ -637,7 +637,6 @@ export default function Admin() {
       if (currentSop.stato !== 'in_corso') {
         Alert.alert('Attenzione', 'Il sopralluogo è stato completato. Non è più possibile modificare le anomalie.');
         setShowAnomaliaModal(null);
-        setShowSopralluogoDetail(currentSop);
         return;
       }
 
@@ -673,7 +672,7 @@ export default function Admin() {
         descrizione: anomaliaForm.descrizione,
         gravita: anomaliaForm.gravita,
         foto_ids: fotoIds,
-        nota_vocale_ids: voiceNoteIds,  // Multiple voice notes
+        nota_vocale_ids: voiceNoteIds,
         apri_segnalazione: anomaliaForm.apri_segnalazione,
         fornitore_id: anomaliaForm.fornitore_id || undefined,
         tipologia_intervento: anomaliaForm.tipologia_intervento || undefined,
@@ -681,10 +680,11 @@ export default function Admin() {
         note_fornitore: anomaliaForm.note_fornitore || undefined,
       });
 
+      // Close anomalia modal
       setShowAnomaliaModal(null);
       setAnomaliaVoiceNotes([]);
       
-      // Refresh sopralluogo
+      // Refresh and reopen sopralluogo detail
       const full = await api.getSopralluogo(token!, sopId);
       setShowSopralluogoDetail(full);
       
@@ -698,6 +698,22 @@ export default function Admin() {
       Alert.alert('Errore', e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Close anomalia modal and reopen sopralluogo
+  const closeAnomaliaModal = async () => {
+    const sopId = showAnomaliaModal?.sopralluogo?.id;
+    setShowAnomaliaModal(null);
+    setAnomaliaVoiceNotes([]);
+    if (sopId) {
+      try {
+        const full = await api.getSopralluogo(token!, sopId);
+        setShowSopralluogoDetail(full);
+      } catch (e) {
+        // If error, just reload all
+        loadAll();
+      }
     }
   };
 
