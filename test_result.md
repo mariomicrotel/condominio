@@ -249,6 +249,18 @@ backend:
         agent: "testing"
         comment: "TESTED: Segnalazioni with allegati working perfectly. Can create segnalazioni with file IDs in allegati array, admin can retrieve segnalazione detail with allegati_dettagli populated with complete file metadata. File type validation, authentication enforcement all working correctly."
 
+  - task: "Portale Fornitori module (full workflow)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: All 16 steps of Portale Fornitori workflow PASSED successfully. 1) Seed data OK, 2) Admin login OK, 3) Create fornitore (POST /api/admin/fornitori) OK, 4) List fornitori (GET /api/admin/fornitori) OK, 5) Condomino login & create segnalazione OK, 6) Admin assign fornitore to segnalazione (POST /api/admin/segnalazioni/{id}/assegna) OK, 7) Fornitore login OK, 8) Fornitore dashboard (GET /api/fornitore/dashboard) OK, 9) List interventions (GET /api/fornitore/interventi) OK, 10) Intervention detail (GET /api/fornitore/interventi/{id}) OK, 11) Create rapportino (POST /api/fornitore/rapportino/{id}) OK, 12) Admin view rapportino (GET /api/admin/segnalazioni/{id}/rapportino) OK, 13) Admin close segnalazione (POST /api/admin/segnalazioni/{id}/chiudi) OK, 14) Admin reopen segnalazione (POST /api/admin/segnalazioni/{id}/riapri) OK, 15) Timeline events (GET /api/admin/segnalazioni/{id}/timeline) OK with 4 timeline events, 16) Delete fornitore (DELETE /api/admin/fornitori/{id}) OK. Complete fornitore workflow functional from creation to intervention completion."
+
 frontend:
   - task: "Admin Config tab (view/edit studio info, API keys, export CSV, gestione estratti conto)"
     implemented: true
@@ -312,8 +324,8 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "2.1"
-  test_sequence: 2
+  version: "2.2"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -399,8 +411,10 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Testing file upload endpoint and segnalazione with allegati. New endpoints: 1) POST /api/upload (multipart/form-data with file, auth required), 2) GET /api/files/{file_id}/{filename} (no auth, serves file), 3) GET /api/segnalazioni/{seg_id} (returns segnalazione detail with allegati_dettagli). Test flow: First login as condomino (mario.rossi@email.it/password123), upload a test file via multipart, then create a segnalazione with the file ID in allegati[], then get segnalazione detail as admin and verify allegati_dettagli is populated. Admin creds: admin@tardugno.it/admin123. Backend: localhost:8001. All routes: /api prefix."
+    message: "Testing the new Portale Fornitori module. New endpoints to test: 1) POST /api/admin/fornitori (create fornitore - admin), 2) GET /api/admin/fornitori (list fornitori - admin), 3) POST /api/admin/segnalazioni/{seg_id}/assegna (assign fornitore to segnalazione - admin), 4) GET /api/fornitore/dashboard (fornitore stats), 5) GET /api/fornitore/interventi (fornitore's assigned interventions), 6) POST /api/fornitore/rapportino/{seg_id} (create rapportino), 7) GET /api/admin/segnalazioni/{seg_id}/rapportino (admin view rapportino), 8) POST /api/admin/segnalazioni/{seg_id}/chiudi (close segnalazione), 9) POST /api/admin/segnalazioni/{seg_id}/riapri (reopen). Flow: Login admin -> create fornitore -> login as fornitore -> create segnalazione as condomino -> admin assigns fornitore -> fornitore sees intervention -> fornitore creates rapportino -> admin views and closes. Admin: admin@tardugno.it/admin123. Condomino: mario.rossi@email.it/password123. Backend: localhost:8001, all /api prefix."
   - agent: "testing"
     message: "BACKEND TESTING COMPLETE: All 5 Fase 2 endpoint groups tested successfully (18/19 individual tests passed). Config endpoints working with proper auth, Notifications working with correct admin->condomino flow, Trasmissioni working with file upload and status updates, Estratto Conto working with financial data management, CSV exports working with proper encoding. Existing endpoints (dashboard, condomini) also confirmed working. Backend API is fully functional and ready for production use."
   - agent: "testing"
     message: "FILE UPLOAD AND SEGNALAZIONI WITH ALLEGATI TESTING COMPLETE: All 7 test steps passed successfully. 1) Condomino login working, 2) File upload endpoint (POST /api/upload) working with proper multipart/form-data handling and returns complete file metadata, 3) File download (GET /api/files/{file_id}/{filename}) working with correct content serving, 4) File type validation working (rejects unsupported formats like ZIP), 5) Segnalazione creation with allegati working (file IDs properly stored in allegati array), 6) Admin segnalazione detail retrieval working with allegati_dettagli populated with complete file metadata, 7) Authentication enforcement working (upload without token returns 403). All file upload functionality is working correctly."
+  - agent: "testing"
+    message: "PORTALE FORNITORI MODULE TESTING COMPLETE: All 16 test steps passed successfully! Complete fornitore workflow tested from creation to intervention completion. ✅ Admin fornitore management (create, list, delete), ✅ Fornitore-segnalazione assignment system, ✅ Fornitore authentication and dashboard, ✅ Intervention listing and detail views, ✅ Rapportino creation and admin review, ✅ Segnalazione state transitions (close/reopen), ✅ Timeline events tracking, ✅ Notification system integration. All authentication, authorization, and data flow working correctly. Backend API for fornitore module is fully functional and production-ready."

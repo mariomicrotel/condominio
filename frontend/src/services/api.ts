@@ -109,4 +109,24 @@ export const api = {
 
   // File URL helper
   getFileUrl: (fileId: string, filename: string) => `${BACKEND_URL}/api/files/${fileId}/${encodeURIComponent(filename)}`,
+
+  // ===== FORNITORI =====
+  // Admin
+  getAdminFornitori: (token: string) => apiCall('/admin/fornitori', { token }),
+  createFornitore: (token: string, data: any) => apiCall('/admin/fornitori', { method: 'POST', token, body: data }),
+  updateFornitore: (token: string, id: string, data: any) => apiCall(`/admin/fornitori/${id}`, { method: 'PUT', token, body: data }),
+  deleteFornitore: (token: string, id: string) => apiCall(`/admin/fornitori/${id}`, { method: 'DELETE', token }),
+  assegnaFornitore: (token: string, segId: string, data: any) => apiCall(`/admin/segnalazioni/${segId}/assegna`, { method: 'POST', token, body: data }),
+  getAdminRapportino: (token: string, segId: string) => apiCall(`/admin/segnalazioni/${segId}/rapportino`, { token }),
+  getAdminTimeline: (token: string, segId: string) => apiCall(`/admin/segnalazioni/${segId}/timeline`, { token }),
+  chiudiSegnalazione: (token: string, segId: string) => apiCall(`/admin/segnalazioni/${segId}/chiudi`, { method: 'POST', token }),
+  riapriSegnalazione: (token: string, segId: string) => apiCall(`/admin/segnalazioni/${segId}/riapri`, { method: 'POST', token }),
+  getFornitoreInterventi: (token: string, fornId: string) => apiCall(`/admin/fornitori/${fornId}/interventi`, { token }),
+
+  // Fornitore
+  fornitoreDashboard: (token: string) => apiCall('/fornitore/dashboard', { token }),
+  fornitoreInterventi: (token: string) => apiCall('/fornitore/interventi', { token }),
+  fornitoreInterventoDetail: (token: string, segId: string) => apiCall(`/fornitore/interventi/${segId}`, { token }),
+  createRapportino: (token: string, segId: string, data: any) => apiCall(`/fornitore/rapportino/${segId}`, { method: 'POST', token, body: data }),
+  getRapportino: (token: string, segId: string) => apiCall(`/fornitore/rapportino/${segId}`, { token }),
 };

@@ -16,7 +16,11 @@ export default function Index() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        router.replace('/home');
+        if (user.ruolo === 'fornitore') {
+          router.replace('/fornitore-dashboard');
+        } else {
+          router.replace('/home');
+        }
       } else {
         router.replace('/login');
       }

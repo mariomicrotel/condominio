@@ -8,12 +8,13 @@ import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
 import { StatusBadge, PrimaryButton, PickerSelect } from '../src/components/SharedComponents';
 
-type Tab = 'dashboard' | 'condomini' | 'utenti' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'config';
+type Tab = 'dashboard' | 'condomini' | 'utenti' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'fornitori' | 'config';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: 'grid-outline' },
   { key: 'condomini', label: 'Condomini', icon: 'business-outline' },
   { key: 'utenti', label: 'Utenti', icon: 'people-outline' },
+  { key: 'fornitori', label: 'Fornitori', icon: 'construct-outline' },
   { key: 'segnalazioni', label: 'Guasti', icon: 'warning-outline' },
   { key: 'appuntamenti', label: 'Appuntamenti', icon: 'calendar-outline' },
   { key: 'avvisi', label: 'Avvisi', icon: 'megaphone-outline' },
@@ -56,17 +57,24 @@ export default function Admin() {
   const [trasmissioni, setTrasmissioni] = useState<any[]>([]);
   const [showECModal, setShowECModal] = useState<any>(null);
   const [ecForm, setEcForm] = useState({ condominio_id: '', periodo: '', quote_versate: '', quote_da_versare: '', scadenza: '', saldo: '', note: '' });
+  // Fornitori state
+  const [fornitori, setFornitori] = useState<any[]>([]);
+  const [showNewForn, setShowNewForn] = useState(false);
+  const [newForn, setNewForn] = useState({ ragione_sociale: '', partita_iva: '', codice_fiscale: '', settori: [] as string[], telefono: '', email: '', indirizzo: '', iban: '', stato: 'Attivo', password: '' });
+  const [showAssegnaFornModal, setShowAssegnaFornModal] = useState<any>(null); // segnalazione to assign
+  const [assegnaFornForm, setAssegnaFornForm] = useState({ fornitore_id: '', note_admin: '', data_prevista: '' });
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, cond, seg, app, avv, ut, trasm] = await Promise.all([
+      const [s, cond, seg, app, avv, ut, trasm, forn] = await Promise.all([
         api.getAdminDashboard(token!), api.getCondomini(token!),
         api.getAdminSegnalazioni(token!), api.getAdminAppuntamenti(token!),
         api.getAdminAvvisi(token!), api.getAdminUtenti(token!),
         api.getAdminTrasmissioni(token!).catch(() => []),
+        api.getAdminFornitori(token!).catch(() => []),
       ]);
-      setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app); setAvvisi(avv); setUtenti(ut); setTrasmissioni(trasm);
+      setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app); setAvvisi(avv); setUtenti(ut); setTrasmissioni(trasm); setFornitori(forn);
     } catch {} finally { setLoading(false); }
   }, [token]);
 
@@ -218,6 +226,59 @@ export default function Admin() {
   const openFile = (fileUrl: string) => {
     const fullUrl = `${process.env.EXPO_PUBLIC_BACKEND_URL}${fileUrl}`;
     Linking.openURL(fullUrl).catch(() => Alert.alert('Errore', 'Impossibile aprire il file'));
+  };
+
+  // === Fornitori CRUD ===
+  const SETTORI = ['Idraulica', 'Elettricità', 'Edilizia', 'Pulizia', 'Fabbro', 'Ascensori', 'Giardinaggio', 'Imbiancatura', 'Altro'];
+
+  const createFornitoreHandler = async () => {
+    if (!newForn.ragione_sociale.trim() || !newForn.email.trim()) { Alert.alert('Attenzione', 'Ragione sociale e email sono obbligatori'); return; }
+    try {
+      const result = await api.createFornitore(token!, newForn);
+      Alert.alert('Fornitore Creato', `Account creato per ${result.ragione_sociale}\n\nEmail: ${result.email}\nPassword temporanea: ${result.password_temp}\n\nComunicare le credenziali al fornitore.`);
+      setShowNewForn(false);
+      setNewForn({ ragione_sociale: '', partita_iva: '', codice_fiscale: '', settori: [], telefono: '', email: '', indirizzo: '', iban: '', stato: 'Attivo', password: '' });
+      loadAll();
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+  };
+
+  const deleteFornitoreHandler = (id: string, nome: string) => {
+    Alert.alert('Elimina Fornitore', `Eliminare "${nome}"?`, [
+      { text: 'Annulla' },
+      { text: 'Elimina', style: 'destructive', onPress: async () => {
+        await api.deleteFornitore(token!, id); loadAll();
+      }},
+    ]);
+  };
+
+  const assegnaFornitoreHandler = async () => {
+    if (!assegnaFornForm.fornitore_id) { Alert.alert('Attenzione', 'Seleziona un fornitore'); return; }
+    try {
+      await api.assegnaFornitore(token!, showAssegnaFornModal.id, assegnaFornForm);
+      setShowAssegnaFornModal(null);
+      Alert.alert('Assegnato', 'Fornitore assegnato alla segnalazione');
+      loadAll();
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+  };
+
+  const chiudiSegnalazioneHandler = (segId: string) => {
+    Alert.alert('Chiudi Segnalazione', 'Confermi la chiusura della segnalazione?', [
+      { text: 'Annulla' },
+      { text: 'Chiudi', onPress: async () => {
+        try { await api.chiudiSegnalazione(token!, segId); loadAll(); setModalSeg(null); }
+        catch (e: any) { Alert.alert('Errore', e.message); }
+      }},
+    ]);
+  };
+
+  const riapriSegnalazioneHandler = (segId: string) => {
+    Alert.alert('Richiedi nuovo intervento', 'Vuoi richiedere un ulteriore intervento al fornitore?', [
+      { text: 'Annulla' },
+      { text: 'Richiedi', onPress: async () => {
+        try { await api.riapriSegnalazione(token!, segId); loadAll(); setModalSeg(null); }
+        catch (e: any) { Alert.alert('Errore', e.message); }
+      }},
+    ]);
   };
 
   const handleLogout = () => {
@@ -493,6 +554,36 @@ export default function Admin() {
             )} />
         )}
 
+        {/* ====== FORNITORI ====== */}
+        {tab === 'fornitori' && (
+          <View style={{ flex: 1 }}>
+            <TouchableOpacity testID="admin-new-forn-btn" style={[s.addBtn, { backgroundColor: '#EA580C' }]} onPress={() => setShowNewForn(true)}>
+              <Ionicons name="add" size={22} color={Colors.white} />
+              <Text style={s.addBtnText}>Nuovo Fornitore</Text>
+            </TouchableOpacity>
+            <FlatList data={fornitori} keyExtractor={i => i.id} contentContainerStyle={s.content}
+              ListEmptyComponent={<Text style={s.emptyText}>Nessun fornitore registrato</Text>}
+              renderItem={({ item }) => (
+                <View testID={`admin-forn-${item.id}`} style={s.listCard}>
+                  <View style={s.listRow}>
+                    <View style={[s.iconCircle, { backgroundColor: '#FFEDD5' }]}>
+                      <Ionicons name="construct" size={18} color="#EA580C" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.listTitle}>{item.ragione_sociale}</Text>
+                      <Text style={s.listSub2}>{item.email} • {item.telefono || 'N/A'}</Text>
+                      {item.settori?.length > 0 && <Text style={s.listMeta}>{item.settori.join(', ')}</Text>}
+                      <Text style={s.listMeta}>Interventi: {item.interventi_count || 0} • {item.stato}</Text>
+                    </View>
+                    <TouchableOpacity testID={`del-forn-${item.id}`} onPress={() => deleteFornitoreHandler(item.id, item.ragione_sociale)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )} />
+          </View>
+        )}
+
         {/* ====== CONFIG ====== */}
         {tab === 'config' && (
           <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
@@ -612,6 +703,35 @@ export default function Admin() {
                 <Text style={s.statusBtnText}>{st}</Text>
               </TouchableOpacity>
             ))}
+
+            {/* Fornitore assignment */}
+            {!modalSeg?.fornitore_id && (
+              <TouchableOpacity style={[s.statusBtn, { borderColor: '#EA580C', marginTop: 8 }]}
+                onPress={() => { setModalSeg(null); setShowAssegnaFornModal(modalSeg); setAssegnaFornForm({ fornitore_id: '', note_admin: '', data_prevista: '' }); }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Ionicons name="construct-outline" size={18} color="#EA580C" />
+                  <Text style={[s.statusBtnText, { color: '#EA580C', fontWeight: '700' }]}>Assegna Fornitore</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            {modalSeg?.fornitore_id && (
+              <View style={{ marginTop: 12, padding: 12, backgroundColor: '#FFEDD5', borderRadius: 10 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#7C2D12' }}>Fornitore: {modalSeg.fornitore_nome}</Text>
+                <Text style={{ fontSize: 12, color: '#92400E', marginTop: 2 }}>Stato: {modalSeg.stato}</Text>
+                {modalSeg.stato === 'Intervento completato' && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                    <TouchableOpacity style={{ flex: 1, padding: 10, backgroundColor: '#16A34A', borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => chiudiSegnalazioneHandler(modalSeg.id)}>
+                      <Text style={{ color: Colors.white, fontWeight: '600', fontSize: 13 }}>Chiudi</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={{ flex: 1, padding: 10, backgroundColor: '#D97706', borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => riapriSegnalazioneHandler(modalSeg.id)}>
+                      <Text style={{ color: Colors.white, fontWeight: '600', fontSize: 13 }}>Nuovo intervento</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
             <TouchableOpacity style={s.closeBtn} onPress={() => setModalSeg(null)}><Text style={s.closeBtnText}>Chiudi</Text></TouchableOpacity>
           </ScrollView>
         </View>
@@ -705,6 +825,55 @@ export default function Admin() {
             <ConfigField testID="ec-note" label="Note" value={ecForm.note} placeholder="Note aggiuntive..." onChange={v => setEcForm(p => ({ ...p, note: v }))} multiline />
             <PrimaryButton title="Salva Estratto Conto" onPress={saveEstrattoConto} testID="ec-save-btn" />
             <TouchableOpacity style={s.closeBtn} onPress={() => setShowECModal(null)}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Modal: Nuovo Fornitore */}
+      <Modal visible={showNewForn} transparent animationType="slide" onRequestClose={() => setShowNewForn(false)}>
+        <View style={s.modalOverlay}>
+          <ScrollView style={s.modal} keyboardShouldPersistTaps="handled">
+            <Text style={s.modalTitle}>Nuovo Fornitore</Text>
+            <ConfigField testID="forn-rs" label="Ragione Sociale *" value={newForn.ragione_sociale} placeholder="Es: Idraulica Rossi" onChange={v => setNewForn(p => ({ ...p, ragione_sociale: v }))} />
+            <ConfigField testID="forn-email" label="Email *" value={newForn.email} placeholder="fornitore@email.it" onChange={v => setNewForn(p => ({ ...p, email: v }))} keyboardType="email-address" />
+            <ConfigField testID="forn-pw" label="Password (auto se vuota)" value={newForn.password} placeholder="Lascia vuoto per auto-generare" onChange={v => setNewForn(p => ({ ...p, password: v }))} />
+            <ConfigField testID="forn-tel" label="Telefono" value={newForn.telefono} placeholder="+39 333 1234567" onChange={v => setNewForn(p => ({ ...p, telefono: v }))} />
+            <ConfigField testID="forn-piva" label="Partita IVA" value={newForn.partita_iva} placeholder="12345678901" onChange={v => setNewForn(p => ({ ...p, partita_iva: v }))} />
+            <ConfigField testID="forn-cf" label="Codice Fiscale" value={newForn.codice_fiscale} placeholder="RSSMRA80A01H703K" onChange={v => setNewForn(p => ({ ...p, codice_fiscale: v }))} />
+            <ConfigField testID="forn-addr" label="Indirizzo" value={newForn.indirizzo} placeholder="Via Roma 1, Salerno" onChange={v => setNewForn(p => ({ ...p, indirizzo: v }))} />
+            <ConfigField testID="forn-iban" label="IBAN" value={newForn.iban} placeholder="IT60X0542811101000000123456" onChange={v => setNewForn(p => ({ ...p, iban: v }))} />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.textSec, marginBottom: 4, marginTop: 8 }}>Settori di competenza</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {SETTORI.map(sett => {
+                const sel = newForn.settori.includes(sett);
+                return (
+                  <TouchableOpacity key={sett} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: sel ? '#EA580C' : Colors.bg, borderWidth: 1, borderColor: sel ? '#EA580C' : Colors.border }}
+                    onPress={() => setNewForn(p => ({ ...p, settori: sel ? p.settori.filter(s => s !== sett) : [...p.settori, sett] }))}>
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: sel ? Colors.white : Colors.textSec }}>{sett}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <PrimaryButton title="Crea Fornitore" onPress={createFornitoreHandler} testID="forn-create-btn" style={{ backgroundColor: '#EA580C' }} />
+            <TouchableOpacity style={s.closeBtn} onPress={() => setShowNewForn(false)}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Modal: Assegna Fornitore */}
+      <Modal visible={!!showAssegnaFornModal} transparent animationType="slide" onRequestClose={() => setShowAssegnaFornModal(null)}>
+        <View style={s.modalOverlay}>
+          <ScrollView style={s.modal} keyboardShouldPersistTaps="handled">
+            <Text style={s.modalTitle}>Assegna Fornitore</Text>
+            <Text style={s.modalSub}>{showAssegnaFornModal?.tipologia} — {showAssegnaFornModal?.condominio_nome}</Text>
+            <PickerSelect label="Fornitore *" value={fornitori.find(f => f.id === assegnaFornForm.fornitore_id)?.ragione_sociale || ''}
+              options={fornitori.filter(f => f.stato === 'Attivo').map(f => f.ragione_sociale)}
+              onSelect={v => { const f = fornitori.find(f => f.ragione_sociale === v); if (f) setAssegnaFornForm(p => ({ ...p, fornitore_id: f.id })); }}
+              testID="assegna-forn-picker" />
+            <ConfigField testID="assegna-note" label="Note per il fornitore" value={assegnaFornForm.note_admin} placeholder="Istruzioni specifiche..." onChange={v => setAssegnaFornForm(p => ({ ...p, note_admin: v }))} multiline />
+            <ConfigField testID="assegna-data" label="Data prevista intervento" value={assegnaFornForm.data_prevista} placeholder="Es: 20/03/2026" onChange={v => setAssegnaFornForm(p => ({ ...p, data_prevista: v }))} />
+            <PrimaryButton title="Assegna" onPress={assegnaFornitoreHandler} testID="assegna-forn-btn" style={{ backgroundColor: '#EA580C' }} />
+            <TouchableOpacity style={s.closeBtn} onPress={() => setShowAssegnaFornModal(null)}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
