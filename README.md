@@ -223,6 +223,18 @@ Tutti gli endpoint sono prefissati con `/api`.
 | `GET` | `/api/segnalazioni` | Lista segnalazioni utente | ✅ |
 | `GET` | `/api/segnalazioni/{id}` | Dettaglio segnalazione (con file) | ✅ |
 
+### Segnalazioni Admin
+
+| Metodo | Endpoint | Descrizione | Auth |
+|--------|----------|-------------|------|
+| `POST` | `/api/admin/segnalazioni` | **NUOVO**: Admin crea segnalazione da zero | Admin |
+| `PUT` | `/api/admin/segnalazioni/{id}` | **NUOVO**: Admin modifica contenuto segnalazione (tipologia, descrizione, urgenza, allegati) | Admin |
+| `POST` | `/api/admin/segnalazioni/{id}/assegna` | **NUOVO**: Assegna fornitore alla segnalazione | Admin |
+| `POST` | `/api/admin/segnalazioni/{id}/chiudi` | **NUOVO**: Chiudi segnalazione risolta | Admin |
+| `POST` | `/api/admin/segnalazioni/{id}/riapri` | **NUOVO**: Richiedi nuovo intervento | Admin |
+| `GET` | `/api/admin/segnalazioni/{id}/rapportino` | **NUOVO**: Visualizza rapportino del fornitore | Admin |
+| `GET` | `/api/admin/segnalazioni/{id}/timeline` | **NUOVO**: Cronologia eventi segnalazione | Admin |
+
 ### Upload File
 
 | Metodo | Endpoint | Descrizione | Auth |
