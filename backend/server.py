@@ -182,6 +182,93 @@ class RapportinoCreate(BaseModel):
     note: str = ""
     foto: List[dict] = []  # [{file_id, didascalia}]
 
+# ---- Collaboratori & Sopralluoghi Models ----
+class CollaboratoreCreate(BaseModel):
+    nome: str
+    cognome: str
+    email: str
+    password: str
+    telefono: str = ""
+    qualifica: str = ""  # e.g. "Tecnico", "Geometra", etc.
+    stato: str = "Attivo"  # Attivo / Sospeso
+
+class CollaboratoreUpdate(BaseModel):
+    nome: Optional[str] = None
+    cognome: Optional[str] = None
+    telefono: Optional[str] = None
+    qualifica: Optional[str] = None
+    stato: Optional[str] = None
+
+class SopralluogoCreate(BaseModel):
+    condominio_id: str
+    data: str  # ISO date
+    ora_inizio: str = ""
+    collaboratore_id: Optional[str] = None  # If empty, assigned to logged-in user
+    motivo: str = "Controllo periodico"  # Controllo periodico, Verifica post-intervento, Sopralluogo su segnalazione, Perizia, Altro
+    note_generali: str = ""
+    nota_vocale_generale_id: Optional[str] = None  # file ID
+
+class SopralluogoClose(BaseModel):
+    ora_fine: str = ""
+    note_finali: str = ""
+    nota_vocale_finale_id: Optional[str] = None
+    valutazione: str = "Discreto"  # Buono, Discreto, Sufficiente, Critico
+
+class ChecklistItemUpdate(BaseModel):
+    stato: str  # ok, anomalia, non_controllato
+
+class AnomaliaCreate(BaseModel):
+    descrizione: str
+    gravita: str = "Moderata"  # Lieve, Moderata, Grave, Urgente
+    nota_vocale_id: Optional[str] = None
+    foto_ids: List[str] = []  # list of file IDs
+    foto_didascalie: List[str] = []  # captions for photos
+    apri_segnalazione: bool = False
+    # Se apri_segnalazione = True:
+    fornitore_id: Optional[str] = None
+    tipologia_intervento: Optional[str] = None
+    urgenza_segnalazione: Optional[str] = None
+    note_fornitore: Optional[str] = None
+    data_prevista_intervento: Optional[str] = None
+
+# The 25 standard checklist items for sopralluoghi
+CHECKLIST_VOCI = [
+    "Ascensore", "Balconi", "Cancello carrabile", "Cancello pedonale", "Cantine",
+    "Carrellati", "Chiavi ed aperture", "Citofono / Videocitofono", "Cortile", "Estintori",
+    "Facciata e cornicione", "Fognature", "Giardinaggio", "Illuminazione scale", "Impianto antincendio",
+    "Marciapiede esterno", "Pluviali", "Pompe", "Portone", "Pulizia",
+    "Servizio Raccolta differenziata", "Sottotetti", "Terrazzo", "Varie", "Videosorveglianza"
+]
+
+# Mapping checklist item -> suggested segnalazione type
+CHECKLIST_TIPOLOGIA_MAP = {
+    "Ascensore": "Ascensore",
+    "Balconi": "Parti comuni",
+    "Cancello carrabile": "Fabbro / Automazione",
+    "Cancello pedonale": "Fabbro / Automazione",
+    "Cantine": "Parti comuni",
+    "Carrellati": "Raccolta differenziata",
+    "Chiavi ed aperture": "Fabbro",
+    "Citofono / Videocitofono": "Guasto elettrico",
+    "Cortile": "Parti comuni",
+    "Estintori": "Impianto antincendio",
+    "Facciata e cornicione": "Edilizia",
+    "Fognature": "Guasto idraulico",
+    "Giardinaggio": "Giardinaggio",
+    "Illuminazione scale": "Guasto elettrico",
+    "Impianto antincendio": "Impianto antincendio",
+    "Marciapiede esterno": "Edilizia",
+    "Pluviali": "Guasto idraulico",
+    "Pompe": "Guasto idraulico",
+    "Portone": "Parti comuni",
+    "Pulizia": "Pulizia",
+    "Servizio Raccolta differenziata": "Raccolta differenziata",
+    "Sottotetti": "Infiltrazioni",
+    "Terrazzo": "Infiltrazioni",
+    "Varie": "Altro",
+    "Videosorveglianza": "Sicurezza"
+}
+
 # ================ AUTH HELPERS ================
 
 def hash_pw(password: str) -> str:
