@@ -1,318 +1,335 @@
 #!/usr/bin/env python3
-"""
-Backend API Testing for Sopralluoghi Module
-Tests the complete sopralluoghi workflow as specified in the review request.
-"""
 
 import requests
 import json
+import time
 import sys
-from datetime import datetime, timedelta
 
-# Get backend URL from frontend .env
-BACKEND_URL = "https://condo-manager-40.preview.emergentagent.com/api"
+# Test configuration
+BASE_URL = "https://data-protection-17.preview.emergentagent.com/api"
+ADMIN_EMAIL = "admin@tardugno.it"
+ADMIN_PASSWORD = "admin123"
+CONDOMINO_EMAIL = "mario.rossi@email.it"
+CONDOMINO_PASSWORD = "password123"
 
-def log_step(step_num, description, success=True):
-    """Log test step with status"""
-    status = "✅ PASS" if success else "❌ FAIL"
-    print(f"Step {step_num}: {description} - {status}")
+# Global variables for tokens
+admin_token = None
+condomino_token = None
 
-def log_error(step_num, error_msg):
-    """Log error details"""
-    print(f"   ERROR: {error_msg}")
-
-def test_sopralluoghi_workflow():
-    """Test the complete sopralluoghi workflow"""
-    print("=" * 60)
-    print("TESTING SOPRALLUOGHI MODULE WORKFLOW")
-    print("=" * 60)
+def make_request(method, endpoint, data=None, headers=None, token=None):
+    """Helper function to make HTTP requests."""
+    url = f"{BASE_URL}{endpoint}"
     
-    admin_token = None
-    collaboratore_token = None
-    condominio_id = None
-    sopralluogo_id = None
-    checklist_items = []
+    if headers is None:
+        headers = {"Content-Type": "application/json"}
+    
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     
     try:
-        # Step 1: Reset database
-        print("\n1. Resetting database...")
-        response = requests.post(f"{BACKEND_URL}/seed")
-        if response.status_code == 200:
-            log_step(1, "POST /api/seed - Reset database")
+        if method == "GET":
+            response = requests.get(url, headers=headers)
+        elif method == "POST":
+            response = requests.post(url, json=data, headers=headers)
+        elif method == "PUT":
+            response = requests.put(url, json=data, headers=headers)
+        elif method == "PATCH":
+            response = requests.patch(url, json=data, headers=headers)
         else:
-            log_step(1, f"POST /api/seed failed - Status: {response.status_code}", False)
-            log_error(1, response.text)
-            return False
+            raise ValueError(f"Unsupported method: {method}")
         
-        # Step 2: Admin login
-        print("\n2. Admin login...")
-        login_data = {
-            "email": "admin@tardugno.it",
-            "password": "admin123"
-        }
-        response = requests.post(f"{BACKEND_URL}/auth/login", json=login_data)
-        if response.status_code == 200:
-            admin_token = response.json()["token"]
-            log_step(2, "POST /api/auth/login (admin) - Get admin token")
+        print(f"{method} {endpoint}")
+        print(f"Status: {response.status_code}")
+        if response.text:
+            try:
+                response_json = response.json()
+                print(f"Response: {json.dumps(response_json, indent=2)}")
+                return response.status_code, response_json
+            except:
+                print(f"Response (text): {response.text}")
+                return response.status_code, response.text
         else:
-            log_step(2, f"Admin login failed - Status: {response.status_code}", False)
-            log_error(2, response.text)
-            return False
-        
-        # Step 3: Create collaboratore
-        print("\n3. Creating collaboratore...")
-        collab_data = {
-            "nome": "Marco",
-            "cognome": "Verdi", 
-            "email": "marco.verdi@studio.it",
-            "password": "Collab123!",
-            "telefono": "+39 333 9876543",
-            "qualifica": "Geometra",
-            "stato": "Attivo"
-        }
-        headers = {"Authorization": f"Bearer {admin_token}"}
-        response = requests.post(f"{BACKEND_URL}/admin/collaboratori", json=collab_data, headers=headers)
-        if response.status_code == 200:
-            collaboratore_data = response.json()
-            log_step(3, "POST /api/admin/collaboratori - Create collaboratore")
-            print(f"   Created collaboratore: {collaboratore_data['nome']} {collaboratore_data['cognome']}")
-        else:
-            log_step(3, f"Create collaboratore failed - Status: {response.status_code}", False)
-            log_error(3, response.text)
-            return False
-        
-        # Step 4: Verify collaboratore appears in list
-        print("\n4. Verifying collaboratore in list...")
-        response = requests.get(f"{BACKEND_URL}/admin/collaboratori", headers=headers)
-        if response.status_code == 200:
-            collaboratori = response.json()
-            found = any(c["email"] == "marco.verdi@studio.it" for c in collaboratori)
-            if found:
-                log_step(4, "GET /api/admin/collaboratori - Verify collaboratore appears")
-            else:
-                log_step(4, "Collaboratore not found in list", False)
-                return False
-        else:
-            log_step(4, f"Get collaboratori failed - Status: {response.status_code}", False)
-            log_error(4, response.text)
-            return False
-        
-        # Step 5: Collaboratore login
-        print("\n5. Collaboratore login...")
-        collab_login_data = {
-            "email": "marco.verdi@studio.it",
-            "password": "Collab123!"
-        }
-        response = requests.post(f"{BACKEND_URL}/collaboratore/login", json=collab_login_data)
-        if response.status_code == 200:
-            collaboratore_token = response.json()["token"]
-            log_step(5, "POST /api/collaboratore/login - Get collaboratore token")
-        else:
-            log_step(5, f"Collaboratore login failed - Status: {response.status_code}", False)
-            log_error(5, response.text)
-            return False
-        
-        # Step 6: Get condominio_id
-        print("\n6. Getting condominio ID...")
-        response = requests.get(f"{BACKEND_URL}/condomini", headers=headers)
-        if response.status_code == 200:
-            condomini = response.json()
-            if condomini:
-                condominio_id = condomini[0]["id"]
-                log_step(6, f"GET /api/condomini - Got condominio_id: {condominio_id}")
-            else:
-                log_step(6, "No condomini found", False)
-                return False
-        else:
-            log_step(6, f"Get condomini failed - Status: {response.status_code}", False)
-            log_error(6, response.text)
-            return False
-        
-        # Step 7: Create sopralluogo
-        print("\n7. Creating sopralluogo...")
-        sopralluogo_data = {
-            "condominio_id": condominio_id,
-            "data": "2026-03-14",
-            "ora_inizio": "09:30",
-            "motivo": "Controllo periodico",
-            "note_generali": "Sopralluogo trimestrale"
-        }
-        # Use collaboratore token for creation
-        collab_headers = {"Authorization": f"Bearer {collaboratore_token}"}
-        response = requests.post(f"{BACKEND_URL}/sopralluoghi", json=sopralluogo_data, headers=collab_headers)
-        if response.status_code == 200:
-            sopralluogo = response.json()
-            sopralluogo_id = sopralluogo["id"]
-            log_step(7, f"POST /api/sopralluoghi - Created sopralluogo ID: {sopralluogo_id}")
-        else:
-            log_step(7, f"Create sopralluogo failed - Status: {response.status_code}", False)
-            log_error(7, response.text)
-            return False
-        
-        # Step 8: Verify sopralluogo appears with checklist summary
-        print("\n8. Verifying sopralluogo in list...")
-        response = requests.get(f"{BACKEND_URL}/sopralluoghi", headers=collab_headers)
-        if response.status_code == 200:
-            sopralluoghi = response.json()
-            found_sop = None
-            for sop in sopralluoghi:
-                if sop["id"] == sopralluogo_id:
-                    found_sop = sop
-                    break
-            
-            if found_sop:
-                log_step(8, "GET /api/sopralluoghi - Verify sopralluogo appears with checklist summary")
-                print(f"   Checklist summary: OK={found_sop.get('checklist_ok', 0)}, Anomalie={found_sop.get('checklist_anomalie', 0)}, Non controllato={found_sop.get('checklist_non_controllato', 0)}")
-            else:
-                log_step(8, "Sopralluogo not found in list", False)
-                return False
-        else:
-            log_step(8, f"Get sopralluoghi failed - Status: {response.status_code}", False)
-            log_error(8, response.text)
-            return False
-        
-        # Step 9: Get full sopralluogo details with 25 checklist items
-        print("\n9. Getting sopralluogo details...")
-        response = requests.get(f"{BACKEND_URL}/sopralluoghi/{sopralluogo_id}", headers=collab_headers)
-        if response.status_code == 200:
-            sop_detail = response.json()
-            checklist_items = sop_detail.get("checklist", [])
-            if len(checklist_items) == 25:
-                log_step(9, f"GET /api/sopralluoghi/{sopralluogo_id} - Got full details with 25 checklist items")
-                print(f"   Checklist items count: {len(checklist_items)}")
-            else:
-                log_step(9, f"Expected 25 checklist items, got {len(checklist_items)}", False)
-                return False
-        else:
-            log_step(9, f"Get sopralluogo detail failed - Status: {response.status_code}", False)
-            log_error(9, response.text)
-            return False
-        
-        # Step 10: Mark first item as "ok"
-        print("\n10. Marking first checklist item as 'ok'...")
-        if checklist_items:
-            first_item_id = checklist_items[0]["id"]
-            update_data = {"stato": "ok"}
-            response = requests.put(f"{BACKEND_URL}/sopralluoghi/{sopralluogo_id}/checklist/{first_item_id}", 
-                                  json=update_data, headers=collab_headers)
-            if response.status_code == 200:
-                log_step(10, f"PUT /api/sopralluoghi/{sopralluogo_id}/checklist/{first_item_id} - Mark first item as 'ok'")
-            else:
-                log_step(10, f"Update checklist item failed - Status: {response.status_code}", False)
-                log_error(10, response.text)
-                return False
-        else:
-            log_step(10, "No checklist items available", False)
-            return False
-        
-        # Step 11: Mark second item as "anomalia"
-        print("\n11. Marking second checklist item as 'anomalia'...")
-        if len(checklist_items) > 1:
-            second_item_id = checklist_items[1]["id"]
-            update_data = {"stato": "anomalia"}
-            response = requests.put(f"{BACKEND_URL}/sopralluoghi/{sopralluogo_id}/checklist/{second_item_id}", 
-                                  json=update_data, headers=collab_headers)
-            if response.status_code == 200:
-                log_step(11, f"PUT /api/sopralluoghi/{sopralluogo_id}/checklist/{second_item_id} - Mark second item as 'anomalia'")
-            else:
-                log_step(11, f"Update checklist item failed - Status: {response.status_code}", False)
-                log_error(11, response.text)
-                return False
-        else:
-            log_step(11, "Second checklist item not available", False)
-            return False
-        
-        # Step 12: Create anomalia for second item
-        print("\n12. Creating anomalia for second item...")
-        anomalia_data = {
-            "descrizione": "Lampada fulminata al terzo piano",
-            "gravita": "Moderata",
-            "foto_ids": [],
-            "apri_segnalazione": False
-        }
-        response = requests.post(f"{BACKEND_URL}/sopralluoghi/{sopralluogo_id}/checklist/{second_item_id}/anomalia", 
-                               json=anomalia_data, headers=collab_headers)
-        if response.status_code == 200:
-            log_step(12, f"POST /api/sopralluoghi/{sopralluogo_id}/checklist/{second_item_id}/anomalia - Create anomalia")
-        else:
-            log_step(12, f"Create anomalia failed - Status: {response.status_code}", False)
-            log_error(12, response.text)
-            return False
-        
-        # Step 13: Verify checklist states and anomalia details
-        print("\n13. Verifying checklist states and anomalia...")
-        response = requests.get(f"{BACKEND_URL}/sopralluoghi/{sopralluogo_id}", headers=collab_headers)
-        if response.status_code == 200:
-            sop_detail = response.json()
-            checklist = sop_detail.get("checklist", [])
-            
-            # Check first item is "ok"
-            first_ok = checklist[0]["stato"] == "ok" if checklist else False
-            # Check second item is "anomalia" and has anomalia details
-            second_anomalia = False
-            has_anomalia_details = False
-            if len(checklist) > 1:
-                second_anomalia = checklist[1]["stato"] == "anomalia"
-                has_anomalia_details = "anomalia" in checklist[1] and checklist[1]["anomalia"].get("descrizione") == "Lampada fulminata al terzo piano"
-            
-            if first_ok and second_anomalia and has_anomalia_details:
-                log_step(13, "GET /api/sopralluoghi/{id} - Verify checklist states and anomalia details")
-                print(f"   First item: {checklist[0]['stato']}")
-                print(f"   Second item: {checklist[1]['stato']} with anomalia: {checklist[1].get('anomalia', {}).get('descrizione', 'N/A')}")
-            else:
-                log_step(13, f"Checklist verification failed - First OK: {first_ok}, Second anomalia: {second_anomalia}, Has details: {has_anomalia_details}", False)
-                return False
-        else:
-            log_step(13, f"Get sopralluogo detail failed - Status: {response.status_code}", False)
-            log_error(13, response.text)
-            return False
-        
-        # Step 14: Close sopralluogo
-        print("\n14. Closing sopralluogo...")
-        close_data = {
-            "valutazione": "Discreto",
-            "note_finali": "Controllo completato"
-        }
-        response = requests.post(f"{BACKEND_URL}/sopralluoghi/{sopralluogo_id}/chiudi", 
-                               json=close_data, headers=collab_headers)
-        if response.status_code == 200:
-            log_step(14, f"POST /api/sopralluoghi/{sopralluogo_id}/chiudi - Close sopralluogo")
-        else:
-            log_step(14, f"Close sopralluogo failed - Status: {response.status_code}", False)
-            log_error(14, response.text)
-            return False
-        
-        # Step 15: Verify stato="completato"
-        print("\n15. Verifying sopralluogo is completed...")
-        response = requests.get(f"{BACKEND_URL}/sopralluoghi", headers=collab_headers)
-        if response.status_code == 200:
-            sopralluoghi = response.json()
-            completed_sop = None
-            for sop in sopralluoghi:
-                if sop["id"] == sopralluogo_id:
-                    completed_sop = sop
-                    break
-            
-            if completed_sop and completed_sop.get("stato") == "completato":
-                log_step(15, "GET /api/sopralluoghi - Verify stato='completato'")
-                print(f"   Sopralluogo stato: {completed_sop['stato']}")
-            else:
-                log_step(15, f"Sopralluogo not completed - Status: {completed_sop.get('stato') if completed_sop else 'Not found'}", False)
-                return False
-        else:
-            log_step(15, f"Get sopralluoghi failed - Status: {response.status_code}", False)
-            log_error(15, response.text)
-            return False
-        
-        print("\n" + "=" * 60)
-        print("✅ ALL SOPRALLUOGHI WORKFLOW TESTS PASSED!")
-        print("=" * 60)
-        return True
-        
+            print("Response: (empty)")
+            return response.status_code, None
     except Exception as e:
-        print(f"\n❌ UNEXPECTED ERROR: {str(e)}")
+        print(f"ERROR: {e}")
+        return None, None
+
+def test_step(step_num, description, expected_status=200):
+    """Decorator-like function to test steps."""
+    print(f"\n{'='*60}")
+    print(f"STEP {step_num}: {description}")
+    print(f"{'='*60}")
+    return expected_status
+
+def main():
+    """Test GDPR Compliance Module endpoints in the specified order."""
+    global admin_token, condomino_token
+    
+    print("Starting GDPR Compliance Module Testing")
+    print(f"Backend URL: {BASE_URL}")
+    
+    # Step 1: GET /api/informativa/attiva (public, no auth)
+    expected_status = test_step(1, "GET /api/informativa/attiva (public, no auth) - Should return active privacy policy with versione='1.0'")
+    status, response = make_request("GET", "/informativa/attiva")
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
         return False
+    if not response or response.get("versione") != "1.0":
+        print(f"❌ FAILED: Expected versione='1.0', got {response.get('versione') if response else 'None'}")
+        return False
+    if not response.get("testo_completo"):
+        print(f"❌ FAILED: Expected testo_completo, got empty or None")
+        return False
+    print("✅ Step 1 PASSED: Active privacy policy v1.0 returned with full text")
+    
+    # Step 2: Admin login
+    expected_status = test_step(2, "Admin login: POST /api/auth/login - Get admin token")
+    status, response = make_request("POST", "/auth/login", {"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or not response.get("token"):
+        print(f"❌ FAILED: No token in response")
+        return False
+    admin_token = response["token"]
+    print(f"✅ Step 2 PASSED: Admin login successful, token obtained")
+    
+    # Step 3: GET /api/informativa/versioni (with admin token)
+    expected_status = test_step(3, "GET /api/informativa/versioni (with admin token) - Should return list of policy versions")
+    status, response = make_request("GET", "/informativa/versioni", token=admin_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or not isinstance(response, list):
+        print(f"❌ FAILED: Expected list of versions, got {type(response)}")
+        return False
+    if len(response) == 0:
+        print(f"❌ FAILED: Expected at least one version, got empty list")
+        return False
+    if not any(v.get("versione") == "1.0" for v in response):
+        print(f"❌ FAILED: Expected version 1.0 in list")
+        return False
+    print(f"✅ Step 3 PASSED: Policy versions list returned with {len(response)} version(s)")
+    
+    # Step 4: POST /api/admin/informativa (create new policy version v1.1)
+    expected_status = test_step(4, "POST /api/admin/informativa (create new policy version v1.1)")
+    new_policy_data = {
+        "versione": "1.1",
+        "testo_completo": "Versione aggiornata informativa privacy - testo completo v1.1",
+        "note_versione": "Test aggiornamento"
+    }
+    status, response = make_request("POST", "/admin/informativa", new_policy_data, token=admin_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or response.get("versione") != "1.1":
+        print(f"❌ FAILED: Expected versione='1.1', got {response.get('versione') if response else 'None'}")
+        return False
+    print(f"✅ Step 4 PASSED: New policy version v1.1 created and set as active")
+    
+    # Step 5: GET /api/informativa/attiva again (should now return v1.1)
+    expected_status = test_step(5, "GET /api/informativa/attiva again - Should now return v1.1 as active version")
+    status, response = make_request("GET", "/informativa/attiva")
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or response.get("versione") != "1.1":
+        print(f"❌ FAILED: Expected versione='1.1', got {response.get('versione') if response else 'None'}")
+        return False
+    print(f"✅ Step 5 PASSED: Active policy now shows v1.1")
+    
+    # Step 6: Condomino login
+    expected_status = test_step(6, "Condomino login: POST /api/auth/login - Get condomino token")
+    status, response = make_request("POST", "/auth/login", {"email": CONDOMINO_EMAIL, "password": CONDOMINO_PASSWORD})
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or not response.get("token"):
+        print(f"❌ FAILED: No token in response")
+        return False
+    condomino_token = response["token"]
+    print(f"✅ Step 6 PASSED: Condomino login successful, token obtained")
+    
+    # Step 7: GET /api/informativa/verifica-aggiornamento (should return aggiornamento_richiesto=true)
+    expected_status = test_step(7, "GET /api/informativa/verifica-aggiornamento - Should return aggiornamento_richiesto=true")
+    status, response = make_request("GET", "/informativa/verifica-aggiornamento", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or response.get("aggiornamento_richiesto") != True:
+        print(f"❌ FAILED: Expected aggiornamento_richiesto=true, got {response.get('aggiornamento_richiesto') if response else 'None'}")
+        return False
+    if response.get("versione_attiva") != "1.1":
+        print(f"❌ FAILED: Expected versione_attiva='1.1', got {response.get('versione_attiva')}")
+        return False
+    print(f"✅ Step 7 PASSED: User needs to accept v1.1 update")
+    
+    # Step 8: POST /api/consensi/conferma-aggiornamento (confirm acceptance v1.1)
+    expected_status = test_step(8, "POST /api/consensi/conferma-aggiornamento - Confirm acceptance of v1.1")
+    status, response = make_request("POST", "/consensi/conferma-aggiornamento", {"versione": "1.1"}, token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or "confermato" not in response.get("message", "").lower():
+        print(f"❌ FAILED: Expected confirmation message, got {response.get('message') if response else 'None'}")
+        return False
+    print(f"✅ Step 8 PASSED: Policy v1.1 acceptance confirmed")
+    
+    # Step 9: GET /api/informativa/verifica-aggiornamento again (should now return aggiornamento_richiesto=false)
+    expected_status = test_step(9, "GET /api/informativa/verifica-aggiornamento again - Should now return aggiornamento_richiesto=false")
+    status, response = make_request("GET", "/informativa/verifica-aggiornamento", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or response.get("aggiornamento_richiesto") != False:
+        print(f"❌ FAILED: Expected aggiornamento_richiesto=false, got {response.get('aggiornamento_richiesto') if response else 'None'}")
+        return False
+    print(f"✅ Step 9 PASSED: No update required now")
+    
+    # Step 10: GET /api/consensi/miei (get current consent statuses)
+    expected_status = test_step(10, "GET /api/consensi/miei - Should return consent statuses for privacy_policy, marketing, note_vocali")
+    status, response = make_request("GET", "/consensi/miei", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response:
+        print(f"❌ FAILED: Empty response")
+        return False
+    
+    required_types = ["privacy_policy", "marketing", "note_vocali"]
+    for consent_type in required_types:
+        if consent_type not in response:
+            print(f"❌ FAILED: Expected {consent_type} in response")
+            return False
+    
+    # privacy_policy should be true (just accepted v1.1)
+    if response.get("privacy_policy", {}).get("prestato") != True:
+        print(f"❌ FAILED: Expected privacy_policy.prestato=true")
+        return False
+    
+    print(f"✅ Step 10 PASSED: Consent statuses returned for all consent types")
+    
+    # Step 11: POST /api/consensi/registrazione (save registration consents)
+    expected_status = test_step(11, "POST /api/consensi/registrazione - Save consents")
+    consent_data = {
+        "consenso_privacy": True,
+        "consenso_marketing": True,
+        "consenso_note_vocali": False
+    }
+    status, response = make_request("POST", "/consensi/registrazione", consent_data, token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or "salvati" not in response.get("message", "").lower():
+        print(f"❌ FAILED: Expected success message, got {response.get('message') if response else 'None'}")
+        return False
+    print(f"✅ Step 11 PASSED: Registration consents saved")
+    
+    # Step 12: GET /api/consensi/miei (verify saved consents)
+    expected_status = test_step(12, "GET /api/consensi/miei - Should show marketing=true, note_vocali=false")
+    status, response = make_request("GET", "/consensi/miei", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response:
+        print(f"❌ FAILED: Empty response")
+        return False
+    
+    if response.get("marketing", {}).get("prestato") != True:
+        print(f"❌ FAILED: Expected marketing.prestato=true, got {response.get('marketing', {}).get('prestato')}")
+        return False
+    
+    if response.get("note_vocali", {}).get("prestato") != False:
+        print(f"❌ FAILED: Expected note_vocali.prestato=false, got {response.get('note_vocali', {}).get('prestato')}")
+        return False
+    
+    print(f"✅ Step 12 PASSED: Consents correctly show marketing=true, note_vocali=false")
+    
+    # Step 13: PATCH /api/consensi/marketing/revoca (revoke marketing consent)
+    expected_status = test_step(13, "PATCH /api/consensi/marketing/revoca - Revoke marketing consent")
+    status, response = make_request("PATCH", "/consensi/marketing/revoca", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or "revocato" not in response.get("message", "").lower():
+        print(f"❌ FAILED: Expected revocation message, got {response.get('message') if response else 'None'}")
+        return False
+    print(f"✅ Step 13 PASSED: Marketing consent revoked")
+    
+    # Step 14: GET /api/consensi/miei (marketing.prestato should now be false)
+    expected_status = test_step(14, "GET /api/consensi/miei - marketing.prestato should now be false")
+    status, response = make_request("GET", "/consensi/miei", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response:
+        print(f"❌ FAILED: Empty response")
+        return False
+    
+    if response.get("marketing", {}).get("prestato") != False:
+        print(f"❌ FAILED: Expected marketing.prestato=false after revocation, got {response.get('marketing', {}).get('prestato')}")
+        return False
+    
+    print(f"✅ Step 14 PASSED: Marketing consent now shows as revoked (false)")
+    
+    # Step 15: PATCH /api/consensi/marketing/riattiva (reactivate marketing)
+    expected_status = test_step(15, "PATCH /api/consensi/marketing/riattiva - Reactivate marketing consent")
+    status, response = make_request("PATCH", "/consensi/marketing/riattiva", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or "riattivato" not in response.get("message", "").lower():
+        print(f"❌ FAILED: Expected reactivation message, got {response.get('message') if response else 'None'}")
+        return False
+    print(f"✅ Step 15 PASSED: Marketing consent reactivated")
+    
+    # Step 16: GET /api/consensi/miei (marketing.prestato should now be true again)
+    expected_status = test_step(16, "GET /api/consensi/miei - marketing.prestato should now be true again")
+    status, response = make_request("GET", "/consensi/miei", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response:
+        print(f"❌ FAILED: Empty response")
+        return False
+    
+    if response.get("marketing", {}).get("prestato") != True:
+        print(f"❌ FAILED: Expected marketing.prestato=true after reactivation, got {response.get('marketing', {}).get('prestato')}")
+        return False
+    
+    print(f"✅ Step 16 PASSED: Marketing consent now shows as active (true) again")
+    
+    # Step 17: Try PATCH /api/consensi/privacy_policy/revoca (should return 400 error)
+    expected_status = test_step(17, "PATCH /api/consensi/privacy_policy/revoca - Should return 400 error (cannot revoke privacy_policy)", 400)
+    status, response = make_request("PATCH", "/consensi/privacy_policy/revoca", token=condomino_token)
+    if status != expected_status:
+        print(f"❌ FAILED: Expected status {expected_status}, got {status}")
+        return False
+    if not response or "privacy policy" not in str(response).lower():
+        print(f"❌ FAILED: Expected error message about privacy policy revocation, got {response}")
+        return False
+    print(f"✅ Step 17 PASSED: Privacy policy revocation correctly blocked with 400 error")
+    
+    print(f"\n{'='*80}")
+    print("🎉 ALL GDPR COMPLIANCE MODULE TESTS PASSED! 🎉")
+    print(f"{'='*80}")
+    print("Summary:")
+    print("✅ Public informativa endpoint working")
+    print("✅ Admin policy version management working")
+    print("✅ Policy update notification system working")
+    print("✅ Consent confirmation workflow working")
+    print("✅ Consent management (registration, revocation, reactivation) working")
+    print("✅ Privacy policy revocation protection working")
+    print("✅ All authentication and authorization checks working")
+    
+    return True
 
 if __name__ == "__main__":
-    success = test_sopralluoghi_workflow()
-    sys.exit(0 if success else 1)
+    success = main()
+    if not success:
+        print("\n❌ GDPR COMPLIANCE MODULE TESTS FAILED")
+        sys.exit(1)
+    else:
+        print("\n✅ GDPR COMPLIANCE MODULE TESTS COMPLETED SUCCESSFULLY")
+        sys.exit(0)

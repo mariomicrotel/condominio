@@ -1,15 +1,71 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator, Modal
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/context/AuthContext';
+import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
+
+function PrivacyPolicyModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [policyText, setPolicyText] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (visible && !policyText) {
+      setLoading(true);
+      api.getInformativaAttiva()
+        .then(inf => setPolicyText(inf.testo_completo || ''))
+        .catch(() => setPolicyText('Impossibile caricare il testo dell\'informativa. Visita www.tardugnobonifacio.it per consultarla.'))
+        .finally(() => setLoading(false));
+    }
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={false}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.bg }}>
+        {/* Header */}
+        <View style={pm.header}>
+          <Text style={pm.headerTitle}>Informativa Privacy</Text>
+          <TouchableOpacity onPress={onClose} style={pm.closeBtn}>
+            <Ionicons name="close" size={24} color={Colors.navy} />
+          </TouchableOpacity>
+        </View>
+        {loading
+          ? <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={Colors.navy} />
+              <Text style={{ marginTop: 12, color: Colors.textSec }}>Caricamento...</Text>
+            </View>
+          : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+              <Text style={pm.policyText}>{policyText}</Text>
+              <View style={{ height: 32 }} />
+            </ScrollView>
+        }
+        <View style={pm.footer}>
+          <TouchableOpacity style={pm.closeFullBtn} onPress={onClose} activeOpacity={0.8}>
+            <Text style={pm.closeFullText}>Chiudi</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+}
 
 export default function Register() {
   const router = useRouter();
   const { register } = useAuth();
-  const [form, setForm] = useState({ nome: '', cognome: '', email: '', password: '', telefono: '', indirizzo: '', codice_fiscale: '' });
+  const [form, setForm] = useState({
+    nome: '', cognome: '', email: '', password: '',
+    telefono: '', indirizzo: '', codice_fiscale: '',
+  });
+  const [consensoPrivacy, setConsensoPrivacy] = useState(false);
+  const [consensoMarketing, setConsensoMarketing] = useState(false);
+  const [consensoNoteVocali, setConsensoNoteVocali] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const update = (key: string, val: string) => setForm(p => ({ ...p, [key]: val }));
@@ -23,9 +79,26 @@ export default function Register() {
       Alert.alert('Attenzione', 'La password deve avere almeno 6 caratteri');
       return;
     }
+    if (!consensoPrivacy) {
+      Alert.alert('Attenzione', 'Devi accettare l\'informativa sulla privacy per registrarti');
+      return;
+    }
     setLoading(true);
     try {
       await register(form);
+      // Save consents immediately after registration
+      const storedToken = await AsyncStorage.getItem('token');
+      if (storedToken) {
+        try {
+          await api.salvaConsensiRegistrazione(storedToken, {
+            consenso_privacy: consensoPrivacy,
+            consenso_marketing: consensoMarketing,
+            consenso_note_vocali: consensoNoteVocali,
+          });
+        } catch {
+          // Non-critical: silently ignore consent saving errors
+        }
+      }
       router.replace('/home');
     } catch (e: any) {
       Alert.alert('Errore', e.message || 'Errore durante la registrazione');
@@ -33,6 +106,30 @@ export default function Register() {
       setLoading(false);
     }
   };
+
+  const CheckboxRow = ({
+    checked, onPress, label, required = false, onLinkPress, linkLabel
+  }: {
+    checked: boolean; onPress: () => void; label: string;
+    required?: boolean; onLinkPress?: () => void; linkLabel?: string;
+  }) => (
+    <TouchableOpacity style={s.checkRow} onPress={onPress} activeOpacity={0.7}>
+      <View style={[s.checkbox, checked && s.checkboxChecked]}>
+        {checked && <Ionicons name="checkmark" size={13} color={Colors.white} />}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.checkLabel}>
+          {label}
+          {required && <Text style={{ color: '#DC2626' }}> *</Text>}
+        </Text>
+        {onLinkPress && linkLabel && (
+          <TouchableOpacity onPress={onLinkPress}>
+            <Text style={s.checkLink}>{linkLabel}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={s.safe}>
@@ -48,7 +145,7 @@ export default function Register() {
           {/* Info box */}
           <View style={s.infoBox}>
             <Ionicons name="information-circle" size={20} color="#0369A1" />
-            <Text style={s.infoText}>Dopo la registrazione, lo studio verificherà i tuoi dati e ti assocerà al condominio di appartenenza. Riceverai accesso completo alle funzionalità.</Text>
+            <Text style={s.infoText}>Dopo la registrazione, lo studio verificherà i tuoi dati e ti assocerà al condominio di appartenenza.</Text>
           </View>
 
           <View style={s.form}>
@@ -86,7 +183,37 @@ export default function Register() {
               <TextInput testID="register-cf-input" style={s.input} placeholder="Codice Fiscale" placeholderTextColor={Colors.textMuted} value={form.codice_fiscale} onChangeText={v => update('codice_fiscale', v)} autoCapitalize="characters" />
             </View>
 
-            <TouchableOpacity testID="register-submit-btn" style={s.submitBtn} onPress={handleRegister} disabled={loading} activeOpacity={0.8}>
+            {/* Consent Section */}
+            <View style={s.consentSection}>
+              <Text style={s.consentTitle}>Consensi e Privacy</Text>
+
+              <CheckboxRow
+                checked={consensoPrivacy}
+                onPress={() => setConsensoPrivacy(!consensoPrivacy)}
+                label="Accetto l'informativa sul trattamento dei dati personali"
+                required
+                onLinkPress={() => setShowPrivacyModal(true)}
+                linkLabel="Leggi l'informativa completa"
+              />
+
+              <View style={s.separator} />
+
+              <CheckboxRow
+                checked={consensoMarketing}
+                onPress={() => setConsensoMarketing(!consensoMarketing)}
+                label="Acconsento alla ricezione di comunicazioni informative e aggiornamenti normativi via email (facoltativo)"
+              />
+
+              <View style={s.separator} />
+
+              <CheckboxRow
+                checked={consensoNoteVocali}
+                onPress={() => setConsensoNoteVocali(!consensoNoteVocali)}
+                label="Acconsento alla registrazione e conservazione di note vocali nell'ambito delle segnalazioni e sopralluoghi (facoltativo)"
+              />
+            </View>
+
+            <TouchableOpacity testID="register-submit-btn" style={[s.submitBtn, !consensoPrivacy && s.submitBtnDisabled]} onPress={handleRegister} disabled={loading} activeOpacity={0.8}>
               {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={s.submitText}>Registrati</Text>}
             </TouchableOpacity>
 
@@ -96,6 +223,8 @@ export default function Register() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <PrivacyPolicyModal visible={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
     </SafeAreaView>
   );
 }
@@ -113,9 +242,37 @@ const s = StyleSheet.create({
   inputWrap: { flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, paddingHorizontal: 14, marginBottom: 14 },
   icon: { marginRight: 10 },
   input: { flex: 1, fontSize: 16, color: Colors.textMain },
+  // Consent section
+  consentSection: { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16, marginTop: 4, marginBottom: 8 },
+  consentTitle: { fontSize: 15, fontWeight: '600', color: Colors.navy, marginBottom: 14 },
+  checkRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: Colors.navy,
+    justifyContent: 'center', alignItems: 'center', marginRight: 10, marginTop: 1, flexShrink: 0,
+  },
+  checkboxChecked: { backgroundColor: Colors.navy, borderColor: Colors.navy },
+  checkLabel: { fontSize: 13, color: Colors.textSec, flex: 1, lineHeight: 19 },
+  checkLink: { fontSize: 13, color: Colors.sky, fontWeight: '600', marginTop: 2 },
+  separator: { height: 1, backgroundColor: Colors.border, marginBottom: 12 },
   submitBtn: { height: 56, borderRadius: 12, backgroundColor: Colors.navy, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
+  submitBtnDisabled: { backgroundColor: Colors.textMuted },
   submitText: { fontSize: 16, fontWeight: '600', color: Colors.white },
   loginBtn: { marginTop: 20, alignItems: 'center' },
   loginText: { fontSize: 14, color: Colors.textSec },
   loginLink: { color: Colors.sky, fontWeight: '600' },
+});
+
+const pm = StyleSheet.create({
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.navy },
+  closeBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  policyText: { fontSize: 13, color: Colors.textMain, lineHeight: 21 },
+  footer: { padding: 20, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.white },
+  closeFullBtn: { height: 52, borderRadius: 12, backgroundColor: Colors.navy, justifyContent: 'center', alignItems: 'center' },
+  closeFullText: { fontSize: 16, fontWeight: '600', color: Colors.white },
 });

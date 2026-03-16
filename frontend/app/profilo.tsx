@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
 import { ScreenHeader, FormInput, PrimaryButton } from '../src/components/SharedComponents';
 
 export default function Profilo() {
+  const router = useRouter();
   const { user, token, refreshProfile, logout } = useAuth();
   const [form, setForm] = useState({
     nome: user?.nome || '', cognome: user?.cognome || '',
@@ -75,6 +77,23 @@ export default function Profilo() {
             <FormInput label="Codice Fiscale" value={form.codice_fiscale} onChangeText={(v: string) => update('codice_fiscale', v)} testID="profilo-cf" />
             <PrimaryButton title="Salva Modifiche" onPress={handleSave} loading={loading} testID="profilo-save-btn" />
           </View>
+
+          {/* Privacy Section Link */}
+          <TouchableOpacity
+            style={s.privacyCard}
+            onPress={() => router.push('/privacy')}
+            activeOpacity={0.7}
+          >
+            <View style={s.privacyIcon}>
+              <Ionicons name="shield-checkmark-outline" size={22} color={Colors.sky} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.privacyTitle}>Privacy e Dati Personali</Text>
+              <Text style={s.privacySub}>Gestisci consensi, consulta l'informativa, esercita i tuoi diritti</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
+
           <View style={{ height: 32 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -97,4 +116,15 @@ const s = StyleSheet.create({
   condItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
   condName: { fontSize: 15, fontWeight: '600', color: Colors.textMain },
   condInfo: { fontSize: 13, color: Colors.textSec, marginTop: 2 },
+  privacyCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
+  },
+  privacyIcon: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.skyLight,
+    justifyContent: 'center', alignItems: 'center', marginRight: 14,
+  },
+  privacyTitle: { fontSize: 15, fontWeight: '600', color: Colors.textMain },
+  privacySub: { fontSize: 13, color: Colors.textSec, marginTop: 2 },
 });

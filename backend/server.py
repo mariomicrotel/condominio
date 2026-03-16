@@ -184,6 +184,22 @@ class RapportinoCreate(BaseModel):
     note: str = ""
     foto: List[dict] = []  # [{file_id, didascalia}]
 
+# ---- GDPR Models ----
+
+class ConsensoRegistrazioneCreate(BaseModel):
+    consenso_privacy: bool = False
+    consenso_marketing: bool = False
+    consenso_note_vocali: bool = False
+    versione_informativa: str = "1.0"
+
+class InformativaVersioneCreate(BaseModel):
+    versione: str
+    testo_completo: str
+    note_versione: str = ""
+
+class ConfermaAggiornamentoCreate(BaseModel):
+    versione: str
+
 # ---- Collaboratori & Sopralluoghi Models ----
 class CollaboratoreCreate(BaseModel):
     nome: str
@@ -1601,6 +1617,392 @@ async def condominio_sopralluoghi(cond_id: str, user=Depends(get_admin_or_collab
         s["checklist_non_controllato"] = len([c for c in checklist if c["stato"] == "non_controllato"])
     return sopralluoghi
 
+# ================ GDPR / CONSENSI ================
+
+PRIVACY_POLICY_V1_TEXT = """# INFORMATIVA SUL TRATTAMENTO DEI DATI PERSONALI
+
+ai sensi degli artt. 13 e 14 del Regolamento (UE) 2016/679 (GDPR) e del D.Lgs. 196/2003 come modificato dal D.Lgs. 101/2018
+
+**Versione:** 1.0
+**Titolare del trattamento:** Studio Tardugno & Bonifacio
+
+---
+
+## 1. Titolare del trattamento
+
+**Studio Tardugno & Bonifacio**
+Rag. Velia Elvira Tardugno — P.IVA 01975320654
+Rag. Antonio Bonifacio — P.IVA 04107810659
+Via Raffaele Ricci, 37 — 84129 Salerno (SA)
+Email: info@tardugnobonifacio.it
+Sito web: www.tardugnobonifacio.it
+
+---
+
+## 2. Referente per la protezione dei dati
+
+Email: privacy@tardugnobonifacio.it
+Indirizzo: Via Raffaele Ricci, 37 — 84129 Salerno (SA)
+
+---
+
+## 3. Ambito di applicazione
+
+La presente informativa si applica al trattamento dei dati personali effettuato attraverso l'applicazione mobile e web "Studio Tardugno & Bonifacio — App Condomini", destinata ai condomini amministrati dallo Studio, ai fornitori incaricati degli interventi di manutenzione e ai collaboratori dello Studio.
+
+---
+
+## 4. Categorie di dati personali trattati
+
+### 4.1 Dati forniti volontariamente
+
+- Dati anagrafici: nome, cognome, codice fiscale
+- Dati di contatto: email, telefono, indirizzo
+- Dati immobile: condominio, unità immobiliare, qualità
+- Dati di accesso: email e password (hashata, non recuperabile)
+
+### 4.2 Dati generati dall'utilizzo dell'App
+
+- Segnalazioni guasti: descrizioni, tipologia, urgenza
+- Immagini, video e PDF allegati
+- Registrazioni vocali (previo specifico consenso)
+- Dati finanziari condominiali: estratti conto, quote
+
+### 4.3 Dati raccolti automaticamente
+
+- IP, tipo dispositivo, sistema operativo, user agent
+- Log di accesso e audit trail
+
+### 4.4 Dati non raccolti
+
+L'App non raccoglie dati di geolocalizzazione. I metadati EXIF nelle fotografie vengono rimossi automaticamente. Non vengono effettuate attività di profilazione automatizzata.
+
+---
+
+## 5. Finalità e basi giuridiche
+
+| Finalità | Base giuridica |
+|----------|---------------|
+| Gestione account e rapporto condominiale | Esecuzione del contratto (art. 6.1.b GDPR) |
+| Adempimenti fiscali e legali | Obbligo legale (art. 6.1.c GDPR) |
+| Sicurezza e audit trail | Legittimo interesse (art. 6.1.f GDPR) |
+| Comunicazioni informative via email | Consenso (art. 6.1.a GDPR) |
+| Registrazione note vocali | Consenso (art. 6.1.a GDPR) |
+
+---
+
+## 6. Modalità del trattamento e sicurezza
+
+- Cifratura in transito (HTTPS/TLS 1.2+)
+- Password hashate con bcrypt
+- Autenticazione JWT con scadenza temporale
+- Segregazione degli accessi per ruolo
+- File rinominati con ID casuale, metadati EXIF rimossi
+- Audit trail con conservazione 24 mesi
+- Blocco account dopo 5 tentativi falliti
+
+---
+
+## 7. Destinatari dei dati
+
+- Personale autorizzato dello Studio (admin e collaboratori)
+- Fornitori: ricevono solo indirizzo, tipologia guasto e foto — MAI i dati personali del condomino
+- Fornitori tecnologici: in qualità di Responsabili ex art. 28 GDPR
+- Autorità giudiziarie o fiscali: solo se richiesto per legge
+
+I dati non vengono mai ceduti a terzi per finalità commerciali o di marketing.
+
+---
+
+## 8. Tempi di conservazione
+
+| Categoria | Periodo |
+|-----------|---------|
+| Profilo utente | Durata rapporto + 10 anni |
+| Segnalazioni e allegati | 5 anni dalla chiusura |
+| Sopralluoghi e allegati | 5 anni dalla data |
+| Documenti condominiali | 10 anni |
+| Log di accesso | 24 mesi |
+| Dati di consenso | Durata rapporto + 5 anni |
+| Account inattivi | Cancellazione dopo 24 mesi (con preavviso 60 gg) |
+
+---
+
+## 9. Dati facoltativi e conseguenze del rifiuto
+
+- **Consenso comunicazioni informative:** facoltativo. Il rifiuto comporta solo la mancata ricezione di aggiornamenti non operativi.
+- **Consenso note vocali:** facoltativo. Il rifiuto disattiva la funzionalità di registrazione audio.
+
+Le comunicazioni operative (convocazioni, segnalazioni) continuano normalmente.
+
+---
+
+## 10. Diritti dell'interessato
+
+Ai sensi degli artt. 15–22 GDPR, l'interessato ha il diritto di:
+
+- **Accesso (art. 15):** "Privacy e Dati personali" → "I miei dati"
+- **Rettifica (art. 16):** "Profilo" → "Modifica i miei dati"
+- **Cancellazione (art. 17):** "Privacy e Dati personali" → "Esercita i tuoi diritti" → "Richiedi cancellazione account"
+- **Limitazione (art. 18):** "Privacy e Dati personali" → "Esercita i tuoi diritti"
+- **Portabilità (art. 20):** "Privacy e Dati personali" → "Scarica i miei dati"
+- **Opposizione (art. 21):** per trattamenti basati su legittimo interesse
+- **Revoca consenso (art. 7.3):** "Privacy e Dati personali" → "I miei consensi"
+
+Riscontro entro 30 giorni (prorogabili di 60 in casi complessi).
+
+**Contatti:** privacy@tardugnobonifacio.it | Via Raffaele Ricci 37, 84129 Salerno (SA)
+
+---
+
+## 11. Reclamo
+
+È possibile presentare reclamo al **Garante per la Protezione dei Dati Personali**:
+Piazza Venezia 11, 00187 Roma — www.garanteprivacy.it — garante@gpdp.it
+
+---
+
+## 12. Modifiche all'informativa
+
+Il Titolare si riserva di modificare la presente informativa. In caso di modifiche sostanziali, l'utente sarà invitato ad accettare la nuova versione al primo accesso successivo. Lo storico delle versioni è consultabile nella sezione "Privacy e Dati personali" dell'App.
+
+---
+
+**Studio Tardugno & Bonifacio** — www.tardugnobonifacio.it
+
+*Versione 1.0*"""
+
+async def get_active_informativa():
+    """Helper: returns the currently active privacy policy version doc."""
+    return await db.informativa_versioni.find_one({"attiva": True}, {"_id": 0})
+
+@api_router.get("/informativa/attiva")
+async def get_informativa_attiva():
+    """Public: returns the active privacy policy."""
+    inf = await get_active_informativa()
+    if not inf:
+        raise HTTPException(404, "Nessuna informativa attiva trovata")
+    return inf
+
+@api_router.get("/informativa/versioni")
+async def list_informativa_versioni(user=Depends(get_current_user)):
+    """List all privacy policy versions (authenticated)."""
+    versioni = await db.informativa_versioni.find({}, {"_id": 0, "testo_completo": 0}).sort("data_pubblicazione", -1).to_list(100)
+    return versioni
+
+@api_router.post("/admin/informativa")
+async def admin_crea_informativa(data: InformativaVersioneCreate, user=Depends(get_admin_user)):
+    """Admin creates a new privacy policy version and makes it active."""
+    # Check if version already exists
+    existing = await db.informativa_versioni.find_one({"versione": data.versione})
+    if existing:
+        raise HTTPException(400, f"Versione {data.versione} già esistente")
+    
+    # Deactivate current active version
+    await db.informativa_versioni.update_many({"attiva": True}, {"$set": {"attiva": False}})
+    
+    # Create new version
+    inf = {
+        "id": str(uuid.uuid4()),
+        "versione": data.versione,
+        "testo_completo": data.testo_completo,
+        "note_versione": data.note_versione,
+        "data_pubblicazione": now_iso(),
+        "attiva": True,
+        "created_by": user["id"]
+    }
+    await db.informativa_versioni.insert_one(inf)
+    return {k: v for k, v in inf.items() if k != "_id"}
+
+@api_router.get("/informativa/verifica-aggiornamento")
+async def verifica_aggiornamento_informativa(user=Depends(get_current_user)):
+    """Check if the user needs to accept a new privacy policy version."""
+    active_inf = await get_active_informativa()
+    if not active_inf:
+        return {"aggiornamento_richiesto": False}
+    
+    versione_attiva = active_inf["versione"]
+    
+    # Check if user has accepted this version
+    consenso = await db.consensi.find_one({
+        "user_id": user["id"],
+        "tipo_consenso": "privacy_policy",
+        "versione_informativa": versione_attiva,
+        "prestato": True
+    })
+    
+    if consenso:
+        return {"aggiornamento_richiesto": False, "versione_attiva": versione_attiva}
+    
+    return {
+        "aggiornamento_richiesto": True,
+        "versione_attiva": versione_attiva,
+        "data_pubblicazione": active_inf.get("data_pubblicazione", ""),
+        "note_versione": active_inf.get("note_versione", ""),
+        "testo_completo": active_inf.get("testo_completo", "")
+    }
+
+@api_router.post("/consensi/conferma-aggiornamento")
+async def conferma_aggiornamento_consenso(data: ConfermaAggiornamentoCreate, user=Depends(get_current_user)):
+    """User confirms they have read and accepted the new privacy policy version."""
+    # Verify this version exists and is active
+    inf = await db.informativa_versioni.find_one({"versione": data.versione, "attiva": True})
+    if not inf:
+        raise HTTPException(404, "Versione informativa non trovata o non attiva")
+    
+    # Check if already accepted
+    existing = await db.consensi.find_one({
+        "user_id": user["id"],
+        "tipo_consenso": "privacy_policy",
+        "versione_informativa": data.versione
+    })
+    
+    if existing:
+        # Update existing
+        await db.consensi.update_one(
+            {"user_id": user["id"], "tipo_consenso": "privacy_policy", "versione_informativa": data.versione},
+            {"$set": {"prestato": True, "prestato_il": now_iso(), "revocato_il": None}}
+        )
+    else:
+        # Create new consent record
+        await db.consensi.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "tipo_consenso": "privacy_policy",
+            "versione_informativa": data.versione,
+            "prestato": True,
+            "prestato_il": now_iso(),
+            "revocato_il": None,
+            "created_at": now_iso()
+        })
+    
+    return {"message": "Aggiornamento informativa confermato"}
+
+@api_router.get("/consensi/miei")
+async def get_miei_consensi(user=Depends(get_current_user)):
+    """Get the current user's consent status for all consent types."""
+    active_inf = await get_active_informativa()
+    versione_attiva = active_inf["versione"] if active_inf else "1.0"
+    
+    tipi = ["privacy_policy", "marketing", "note_vocali"]
+    result = {}
+    
+    for tipo in tipi:
+        # Get most recent consent record for this type
+        consenso = await db.consensi.find_one(
+            {"user_id": user["id"], "tipo_consenso": tipo},
+            {"_id": 0},
+            sort=[("prestato_il", -1)]
+        )
+        if consenso:
+            result[tipo] = {
+                "prestato": consenso.get("prestato", False),
+                "versione_informativa": consenso.get("versione_informativa", versione_attiva),
+                "prestato_il": consenso.get("prestato_il"),
+                "revocato_il": consenso.get("revocato_il")
+            }
+        else:
+            result[tipo] = {"prestato": False, "versione_informativa": versione_attiva, "prestato_il": None, "revocato_il": None}
+    
+    return result
+
+@api_router.patch("/consensi/{tipo_consenso}/revoca")
+async def revoca_consenso(tipo_consenso: str, user=Depends(get_current_user)):
+    """Revoke a specific consent."""
+    if tipo_consenso == "privacy_policy":
+        raise HTTPException(400, "Non è possibile revocare il consenso alla privacy policy. Per cancellare l'account contatta lo studio.")
+    
+    allowed = ["marketing", "note_vocali"]
+    if tipo_consenso not in allowed:
+        raise HTTPException(400, f"Tipo consenso non valido. Valori ammessi: {', '.join(allowed)}")
+    
+    active_inf = await get_active_informativa()
+    versione = active_inf["versione"] if active_inf else "1.0"
+    
+    existing = await db.consensi.find_one({"user_id": user["id"], "tipo_consenso": tipo_consenso})
+    if existing:
+        await db.consensi.update_one(
+            {"user_id": user["id"], "tipo_consenso": tipo_consenso},
+            {"$set": {"prestato": False, "revocato_il": now_iso()}}
+        )
+    else:
+        await db.consensi.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "tipo_consenso": tipo_consenso,
+            "versione_informativa": versione,
+            "prestato": False,
+            "prestato_il": None,
+            "revocato_il": now_iso(),
+            "created_at": now_iso()
+        })
+    
+    return {"message": f"Consenso '{tipo_consenso}' revocato"}
+
+@api_router.patch("/consensi/{tipo_consenso}/riattiva")
+async def riattiva_consenso(tipo_consenso: str, user=Depends(get_current_user)):
+    """Reactivate a previously revoked consent."""
+    allowed = ["marketing", "note_vocali"]
+    if tipo_consenso not in allowed:
+        raise HTTPException(400, f"Tipo consenso non valido. Valori ammessi: {', '.join(allowed)}")
+    
+    active_inf = await get_active_informativa()
+    versione = active_inf["versione"] if active_inf else "1.0"
+    
+    existing = await db.consensi.find_one({"user_id": user["id"], "tipo_consenso": tipo_consenso})
+    if existing:
+        await db.consensi.update_one(
+            {"user_id": user["id"], "tipo_consenso": tipo_consenso},
+            {"$set": {"prestato": True, "prestato_il": now_iso(), "revocato_il": None, "versione_informativa": versione}}
+        )
+    else:
+        await db.consensi.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "tipo_consenso": tipo_consenso,
+            "versione_informativa": versione,
+            "prestato": True,
+            "prestato_il": now_iso(),
+            "revocato_il": None,
+            "created_at": now_iso()
+        })
+    
+    return {"message": f"Consenso '{tipo_consenso}' riattivato"}
+
+@api_router.post("/consensi/registrazione")
+async def salva_consensi_registrazione(data: ConsensoRegistrazioneCreate, user=Depends(get_current_user)):
+    """Save consents given during registration (called immediately after /auth/register)."""
+    active_inf = await get_active_informativa()
+    versione = active_inf["versione"] if active_inf else data.versione_informativa
+    
+    now = now_iso()
+    tipi_e_valori = [
+        ("privacy_policy", data.consenso_privacy),
+        ("marketing", data.consenso_marketing),
+        ("note_vocali", data.consenso_note_vocali),
+    ]
+    
+    for tipo, prestato in tipi_e_valori:
+        existing = await db.consensi.find_one({"user_id": user["id"], "tipo_consenso": tipo})
+        doc = {
+            "user_id": user["id"],
+            "tipo_consenso": tipo,
+            "versione_informativa": versione,
+            "prestato": prestato,
+            "prestato_il": now if prestato else None,
+            "revocato_il": None,
+            "created_at": now
+        }
+        if existing:
+            await db.consensi.update_one({"user_id": user["id"], "tipo_consenso": tipo}, {"$set": doc})
+        else:
+            doc["id"] = str(uuid.uuid4())
+            await db.consensi.insert_one(doc)
+    
+    return {"message": "Consensi salvati"}
+
+# ================ SEED ================
+
 @api_router.post("/seed")
 async def seed_data():
     admin = await db.users.find_one({"email": "admin@tardugno.it"})
@@ -1654,6 +2056,19 @@ async def seed_data():
          "categoria": "Avviso generico", "created_at": now_iso()}
     ])
 
+    # Seed Privacy Policy v1.0
+    existing_inf = await db.informativa_versioni.find_one({"versione": "1.0"})
+    if not existing_inf:
+        await db.informativa_versioni.insert_one({
+            "id": str(uuid.uuid4()),
+            "versione": "1.0",
+            "testo_completo": PRIVACY_POLICY_V1_TEXT,
+            "note_versione": "Prima versione dell'informativa privacy",
+            "data_pubblicazione": now_iso(),
+            "attiva": True,
+            "created_by": admin_id
+        })
+
     return {
         "message": "Dati seed inseriti con successo",
         "admin": {"email": "admin@tardugno.it", "password": "admin123"},
@@ -1667,6 +2082,24 @@ async def root():
 
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+@app.on_event("startup")
+async def startup_db_client():
+    """Ensure privacy policy v1.0 exists on startup."""
+    existing_inf = await db.informativa_versioni.find_one({"versione": "1.0"})
+    if not existing_inf:
+        admin = await db.users.find_one({"ruolo": "admin"}, {"id": 1})
+        admin_id = admin["id"] if admin else "system"
+        await db.informativa_versioni.insert_one({
+            "id": str(uuid.uuid4()),
+            "versione": "1.0",
+            "testo_completo": PRIVACY_POLICY_V1_TEXT,
+            "note_versione": "Prima versione dell'informativa privacy",
+            "data_pubblicazione": now_iso(),
+            "attiva": True,
+            "created_by": admin_id
+        })
+        logger.info("Privacy policy v1.0 inserted on startup")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

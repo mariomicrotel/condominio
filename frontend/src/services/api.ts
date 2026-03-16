@@ -150,4 +150,15 @@ export const api = {
   createAnomalia: (token: string, sopId: string, itemId: string, data: any) => 
     apiCall(`/sopralluoghi/${sopId}/checklist/${itemId}/anomalia`, { method: 'POST', token, body: data }),
   getCondominioSopralluoghi: (token: string, condId: string) => apiCall(`/condomini/${condId}/sopralluoghi`, { token }),
+
+  // ===== GDPR / CONSENSI =====
+  getInformativaAttiva: () => apiCall('/informativa/attiva'),
+  getInformativaVersioni: (token: string) => apiCall('/informativa/versioni', { token }),
+  createInformativaVersione: (token: string, data: any) => apiCall('/admin/informativa', { method: 'POST', token, body: data }),
+  verificaAggiornamentoInformativa: (token: string) => apiCall('/informativa/verifica-aggiornamento', { token }),
+  confermaAggiornamentoInformativa: (token: string, versione: string) => apiCall('/consensi/conferma-aggiornamento', { method: 'POST', token, body: { versione } }),
+  getMieiConsensi: (token: string) => apiCall('/consensi/miei', { token }),
+  salvaConsensiRegistrazione: (token: string, data: any) => apiCall('/consensi/registrazione', { method: 'POST', token, body: data }),
+  revocaConsenso: (token: string, tipo: string) => apiCall(`/consensi/${tipo}/revoca`, { method: 'PATCH', token }),
+  riativaConsenso: (token: string, tipo: string) => apiCall(`/consensi/${tipo}/riattiva`, { method: 'PATCH', token }),
 };

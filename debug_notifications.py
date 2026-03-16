@@ -6,7 +6,7 @@ Quick test to check notification behavior
 import requests
 import json
 
-BASE_URL = "https://condo-manager-40.preview.emergentagent.com"
+BASE_URL = "https://data-protection-17.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 ADMIN_CREDS = {"email": "admin@tardugno.it", "password": "admin123"}
