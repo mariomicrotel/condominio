@@ -200,6 +200,14 @@ class InformativaVersioneCreate(BaseModel):
 class ConfermaAggiornamentoCreate(BaseModel):
     versione: str
 
+class RichiestaPrivacyCreate(BaseModel):
+    tipo: str  # accesso, cancellazione, limitazione, portabilita, opposizione
+
+class EvadiRichiestaPrivacy(BaseModel):
+    azione: str  # evasa, rifiutata
+    motivazione_rifiuto: Optional[str] = None
+    note_admin: Optional[str] = None
+
 # ---- Collaboratori & Sopralluoghi Models ----
 class CollaboratoreCreate(BaseModel):
     nome: str
@@ -2000,6 +2008,343 @@ async def salva_consensi_registrazione(data: ConsensoRegistrazioneCreate, user=D
             await db.consensi.insert_one(doc)
     
     return {"message": "Consensi salvati"}
+
+# ================ PRIVACY RIGHTS (Art. 15-22 GDPR) ================
+
+def genera_protocollo_privacy(tipo: str) -> str:
+    """Generate a protocol number for privacy requests."""
+    anno = datetime.now(timezone.utc).year
+    uid = str(uuid.uuid4())[:6].upper()
+    tipo_short = {"cancellazione": "CAN", "limitazione": "LIM", "accesso": "ACC",
+                  "portabilita": "PORT", "opposizione": "OPP"}.get(tipo, "PRV")
+    return f"PRIV-{tipo_short}-{anno}-{uid}"
+
+@api_router.get("/privacy/miei-dati")
+async def get_miei_dati_privacy(user=Depends(get_current_user)):
+    """Return all personal data for the current user across all collections."""
+    uid = user["id"]
+
+    # Profilo
+    profilo = {
+        "nome": user.get("nome", ""),
+        "cognome": user.get("cognome", ""),
+        "email": user.get("email", ""),
+        "telefono": user.get("telefono", ""),
+        "indirizzo": user.get("indirizzo", ""),
+        "codice_fiscale": user.get("codice_fiscale", ""),
+        "ruolo": user.get("ruolo", ""),
+        "data_registrazione": user.get("created_at", ""),
+    }
+
+    # Condomini associati
+    assoc = await db.user_condomini.find({"user_id": uid}, {"_id": 0}).to_list(50)
+    condomini_associati = []
+    for a in assoc:
+        cond = await db.condomini.find_one({"id": a.get("condominio_id")}, {"_id": 0})
+        if cond:
+            condomini_associati.append({
+                "nome_condominio": cond.get("nome", ""),
+                "indirizzo": cond.get("indirizzo", ""),
+                "unita_immobiliare": a.get("unita_immobiliare", ""),
+                "qualita": a.get("qualita", ""),
+            })
+
+    # Consensi
+    consensi_raw = await db.consensi.find({"user_id": uid}, {"_id": 0}).to_list(20)
+    consensi = [{"tipo": c.get("tipo_consenso"), "prestato": c.get("prestato"),
+                  "data": c.get("prestato_il") or c.get("revocato_il"),
+                  "versione_informativa": c.get("versione_informativa")} for c in consensi_raw]
+
+    # Segnalazioni
+    seg_list = await db.segnalazioni.find({"user_id": uid}, {"_id": 0}).to_list(200)
+    segnalazioni = [{"id": s.get("id"), "protocollo": s.get("protocollo", ""),
+                     "data": s.get("created_at"), "tipologia": s.get("tipologia", ""),
+                     "stato": s.get("stato", ""), "n_allegati": len(s.get("allegati", []) + s.get("immagini", []))}
+                    for s in seg_list]
+
+    # Richieste documenti
+    rich_list = await db.richieste.find({"user_id": uid}, {"_id": 0}).to_list(100)
+    richieste_documenti = [{"id": r.get("id"), "data": r.get("created_at"),
+                             "tipo": r.get("tipo_documento", ""), "stato": r.get("stato", "")}
+                           for r in rich_list]
+
+    # Trasmissioni
+    trasm_list = await db.trasmissioni.find({"user_id": uid}, {"_id": 0}).to_list(100)
+    trasmissioni = [{"id": t.get("id"), "data": t.get("created_at"), "oggetto": t.get("oggetto", ""),
+                     "stato": t.get("stato", ""), "n_file": len(t.get("files", []))} for t in trasm_list]
+
+    # Appuntamenti
+    app_list = await db.appuntamenti.find({"user_id": uid}, {"_id": 0}).to_list(100)
+    appuntamenti = [{"id": a.get("id"), "data": a.get("data_richiesta", ""),
+                     "motivo": a.get("motivo", ""), "stato": a.get("stato", "")} for a in app_list]
+
+    return {
+        "profilo": profilo,
+        "condomini_associati": condomini_associati,
+        "consensi": consensi,
+        "segnalazioni": segnalazioni,
+        "richieste_documenti": richieste_documenti,
+        "trasmissioni": trasmissioni,
+        "appuntamenti": appuntamenti,
+        "_meta": {
+            "estratto_il": now_iso(),
+            "user_id": uid,
+        }
+    }
+
+@api_router.get("/privacy/export")
+async def export_miei_dati(user=Depends(get_current_user)):
+    """Download all user personal data as a JSON file."""
+    import json as json_module
+    uid = user["id"]
+
+    # Same as miei-dati but with full content (no truncation)
+    profilo = {
+        "nome": user.get("nome", ""), "cognome": user.get("cognome", ""),
+        "email": user.get("email", ""), "telefono": user.get("telefono", ""),
+        "indirizzo": user.get("indirizzo", ""), "codice_fiscale": user.get("codice_fiscale", ""),
+        "ruolo": user.get("ruolo", ""), "data_registrazione": user.get("created_at", ""),
+    }
+
+    assoc = await db.user_condomini.find({"user_id": uid}, {"_id": 0}).to_list(50)
+    condomini_associati = []
+    for a in assoc:
+        cond = await db.condomini.find_one({"id": a.get("condominio_id")}, {"_id": 0})
+        if cond:
+            condomini_associati.append({
+                "nome_condominio": cond.get("nome", ""), "indirizzo_condominio": cond.get("indirizzo", ""),
+                "unita_immobiliare": a.get("unita_immobiliare", ""), "qualita": a.get("qualita", ""),
+            })
+
+    consensi_raw = await db.consensi.find({"user_id": uid}, {"_id": 0}).to_list(20)
+    consensi = [{"tipo": c.get("tipo_consenso"), "prestato": c.get("prestato"),
+                  "data_prestazione": c.get("prestato_il"), "data_revoca": c.get("revocato_il"),
+                  "versione_informativa": c.get("versione_informativa")} for c in consensi_raw]
+
+    seg_list = await db.segnalazioni.find({"user_id": uid}, {"_id": 0}).to_list(500)
+    segnalazioni = []
+    for s in seg_list:
+        allegati_refs = [{"filename": a, "nota": "Allegato disponibile presso lo studio"} for a in s.get("allegati", [])]
+        segnalazioni.append({
+            "id": s.get("id"), "protocollo": s.get("protocollo", ""), "data": s.get("created_at"),
+            "tipologia": s.get("tipologia", ""), "descrizione": s.get("descrizione", ""),
+            "urgenza": s.get("urgenza", ""), "stato": s.get("stato", ""), "allegati": allegati_refs,
+        })
+
+    rich_list = await db.richieste.find({"user_id": uid}, {"_id": 0}).to_list(200)
+    richieste_documenti = [{"id": r.get("id"), "data": r.get("created_at"), "tipo": r.get("tipo_documento", ""),
+                             "note": r.get("note", ""), "stato": r.get("stato", "")} for r in rich_list]
+
+    trasm_list = await db.trasmissioni.find({"user_id": uid}, {"_id": 0}).to_list(200)
+    trasmissioni = []
+    for t in trasm_list:
+        file_refs = [{"filename": f.get("filename", ""), "data_upload": t.get("created_at")} for f in t.get("files", [])]
+        trasmissioni.append({"id": t.get("id"), "data": t.get("created_at"), "oggetto": t.get("oggetto", ""),
+                              "note": t.get("note", ""), "stato": t.get("stato", ""), "file_allegati": file_refs})
+
+    app_list = await db.appuntamenti.find({"user_id": uid}, {"_id": 0}).to_list(200)
+    appuntamenti = [{"id": a.get("id"), "data_richiesta": a.get("data_richiesta", ""),
+                     "motivo": a.get("motivo", ""), "fascia_oraria": a.get("fascia_oraria", ""),
+                     "note": a.get("note", ""), "stato": a.get("stato", "")} for a in app_list]
+
+    richieste_privacy = await db.richieste_privacy.find({"user_id": uid}, {"_id": 0, "user_id": 0}).to_list(50)
+    for r in richieste_privacy:
+        r.pop("_id", None)
+
+    export_data = {
+        "titolare": "Studio Tardugno & Bonifacio — Via Raffaele Ricci 37, 84129 Salerno",
+        "estratto_il": now_iso(),
+        "utente": profilo,
+        "condomini_associati": condomini_associati,
+        "consensi": consensi,
+        "segnalazioni": segnalazioni,
+        "richieste_documenti": richieste_documenti,
+        "trasmissioni": trasmissioni,
+        "appuntamenti": appuntamenti,
+        "richieste_privacy": richieste_privacy,
+        "nota_allegati": "Per ottenere copia degli allegati multimediali (foto, PDF, audio), contattare lo studio a privacy@tardugnobonifacio.it",
+    }
+
+    json_bytes = json_module.dumps(export_data, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+    filename = f"miei_dati_{uid[:8]}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.json"
+
+    return StreamingResponse(
+        io.BytesIO(json_bytes),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@api_router.post("/privacy/richiesta")
+async def crea_richiesta_privacy(data: RichiestaPrivacyCreate, user=Depends(get_current_user)):
+    """Create a privacy request (access, deletion, limitation, portability, opposition)."""
+    tipi_validi = ["accesso", "cancellazione", "limitazione", "portabilita", "opposizione"]
+    if data.tipo not in tipi_validi:
+        raise HTTPException(400, f"Tipo non valido. Valori ammessi: {', '.join(tipi_validi)}")
+
+    # Check for pending request of same type
+    existing = await db.richieste_privacy.find_one({
+        "user_id": user["id"], "tipo": data.tipo, "stato": {"$in": ["ricevuta", "in_lavorazione"]}
+    })
+    if existing:
+        raise HTTPException(400, f"Hai già una richiesta di tipo '{data.tipo}' in corso (stato: {existing['stato']}). Attendi che venga evasa prima di inviarne una nuova.")
+
+    now = datetime.now(timezone.utc)
+    scadenza = now + timedelta(days=30)
+    protocollo = genera_protocollo_privacy(data.tipo)
+
+    richiesta = {
+        "id": str(uuid.uuid4()),
+        "protocollo": protocollo,
+        "user_id": user["id"],
+        "user_email": user.get("email", ""),
+        "user_nome": f"{user.get('nome', '')} {user.get('cognome', '')}".strip(),
+        "tipo": data.tipo,
+        "stato": "ricevuta",
+        "motivazione_rifiuto": None,
+        "note_admin": None,
+        "scadenza": scadenza.isoformat(),
+        "evasa_il": None,
+        "evasa_da": None,
+        "created_at": now_iso(),
+    }
+    await db.richieste_privacy.insert_one(richiesta)
+
+    # Create notification for admin
+    admin_users = await db.users.find({"ruolo": "admin"}, {"id": 1}).to_list(5)
+    for admin in admin_users:
+        await db.notifiche.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": admin["id"],
+            "titolo": f"Nuova richiesta privacy ({data.tipo})",
+            "testo": f"{richiesta['user_nome']} ha inviato una richiesta di {data.tipo}. Protocollo: {protocollo}. Scadenza: {scadenza.strftime('%d/%m/%Y')}",
+            "tipo": "privacy",
+            "letto": False,
+            "created_at": now_iso(),
+        })
+
+    return {k: v for k, v in richiesta.items() if k != "_id"}
+
+@api_router.get("/privacy/mie-richieste")
+async def get_mie_richieste_privacy(user=Depends(get_current_user)):
+    """Get all privacy requests for the current user."""
+    richieste = await db.richieste_privacy.find(
+        {"user_id": user["id"]}, {"_id": 0, "user_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    return richieste
+
+@api_router.get("/admin/privacy/richieste")
+async def admin_list_richieste_privacy(
+    stato: Optional[str] = None,
+    tipo: Optional[str] = None,
+    scadenza_imminente: Optional[bool] = None,
+    user=Depends(get_admin_user)
+):
+    """Admin: list all privacy requests with optional filters."""
+    query: dict = {}
+    if stato:
+        query["stato"] = stato
+    if tipo:
+        query["tipo"] = tipo
+    if scadenza_imminente:
+        threshold = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
+        query["scadenza"] = {"$lte": threshold}
+        query["stato"] = {"$in": ["ricevuta", "in_lavorazione"]}
+
+    richieste = await db.richieste_privacy.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+    # Add countdown days
+    now = datetime.now(timezone.utc)
+    for r in richieste:
+        try:
+            scad = datetime.fromisoformat(r["scadenza"].replace("Z", "+00:00"))
+            delta = (scad - now).days
+            r["giorni_rimanenti"] = max(delta, 0)
+        except Exception:
+            r["giorni_rimanenti"] = None
+
+    return richieste
+
+@api_router.put("/admin/privacy/richieste/{id}/evadi")
+async def evadi_richiesta_privacy(id: str, data: EvadiRichiestaPrivacy, user=Depends(get_admin_user)):
+    """Admin: process (approve/reject) a privacy request."""
+    richiesta = await db.richieste_privacy.find_one({"id": id})
+    if not richiesta:
+        raise HTTPException(404, "Richiesta non trovata")
+    if richiesta["stato"] not in ["ricevuta", "in_lavorazione"]:
+        raise HTTPException(400, f"Richiesta già {richiesta['stato']}, non modificabile")
+
+    if data.azione not in ["evasa", "rifiutata"]:
+        raise HTTPException(400, "Azione non valida. Usa 'evasa' o 'rifiutata'")
+
+    update_doc = {
+        "stato": data.azione,
+        "note_admin": data.note_admin,
+        "motivazione_rifiuto": data.motivazione_rifiuto,
+        "evasa_il": now_iso(),
+        "evasa_da": user["id"],
+    }
+
+    if data.azione == "evasa" and richiesta["tipo"] == "cancellazione":
+        # Anonymize user account
+        target_uid = richiesta["user_id"]
+        target_user = await db.users.find_one({"id": target_uid})
+        if target_user and target_user.get("stato") != "cancellato":
+            await db.users.update_one({"id": target_uid}, {"$set": {
+                "nome": "Utente rimosso",
+                "cognome": "",
+                "telefono": "",
+                "indirizzo": "",
+                "codice_fiscale": "",
+                "email": f"deleted_{target_uid[:8]}@removed.local",
+                "stato": "cancellato",
+                "cancellato_il": now_iso(),
+                "cancellato_da": user["id"],
+            }})
+            # Revoke all consents
+            await db.consensi.update_many(
+                {"user_id": target_uid},
+                {"$set": {"prestato": False, "revocato_il": now_iso()}}
+            )
+            # Log in audit trail
+            await db.audit_trail.insert_one({
+                "id": str(uuid.uuid4()),
+                "azione": "account_cancellato",
+                "user_id_target": target_uid,
+                "eseguito_da": user["id"],
+                "protocollo_richiesta": richiesta.get("protocollo"),
+                "created_at": now_iso(),
+            })
+            logger.info(f"Account {target_uid} anonymized per GDPR request {richiesta['id']}")
+
+    await db.richieste_privacy.update_one({"id": id}, {"$set": update_doc})
+
+    # Notify user
+    try:
+        await db.notifiche.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": richiesta["user_id"],
+            "titolo": f"Richiesta privacy {data.azione}",
+            "testo": f"La tua richiesta '{richiesta['tipo']}' (protocollo {richiesta.get('protocollo', '')}) è stata {data.azione}." +
+                     (f" Motivazione: {data.motivazione_rifiuto}" if data.motivazione_rifiuto else ""),
+            "tipo": "privacy",
+            "letto": False,
+            "created_at": now_iso(),
+        })
+    except Exception:
+        pass
+
+    return {"message": f"Richiesta {data.azione} con successo", "protocollo": richiesta.get("protocollo")}
+
+@api_router.get("/admin/privacy/richieste/count-scadenza")
+async def count_richieste_scadenza(user=Depends(get_admin_user)):
+    """Count privacy requests expiring within 5 days (for badge)."""
+    threshold = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
+    count = await db.richieste_privacy.count_documents({
+        "scadenza": {"$lte": threshold},
+        "stato": {"$in": ["ricevuta", "in_lavorazione"]}
+    })
+    total_pending = await db.richieste_privacy.count_documents({"stato": {"$in": ["ricevuta", "in_lavorazione"]}})
+    return {"scadenza_imminente": count, "totale_in_attesa": total_pending}
 
 # ================ SEED ================
 

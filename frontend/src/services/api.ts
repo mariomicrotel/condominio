@@ -161,4 +161,26 @@ export const api = {
   salvaConsensiRegistrazione: (token: string, data: any) => apiCall('/consensi/registrazione', { method: 'POST', token, body: data }),
   revocaConsenso: (token: string, tipo: string) => apiCall(`/consensi/${tipo}/revoca`, { method: 'PATCH', token }),
   riativaConsenso: (token: string, tipo: string) => apiCall(`/consensi/${tipo}/riattiva`, { method: 'PATCH', token }),
+
+  // ===== PRIVACY RIGHTS (Art. 15-22 GDPR) =====
+  getMieiDatiPrivacy: (token: string) => apiCall('/privacy/miei-dati', { token }),
+  exportMieiDati: async (token: string): Promise<string> => {
+    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+    const url = `${BACKEND_URL}/api/privacy/export`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: 'Errore' })); throw new Error(e.detail || 'Errore'); }
+    return res.text();
+  },
+  creaRichiestaPrivacy: (token: string, tipo: string) => apiCall('/privacy/richiesta', { method: 'POST', token, body: { tipo } }),
+  getMieRichiestePrivacy: (token: string) => apiCall('/privacy/mie-richieste', { token }),
+  adminListRichiestePrivacy: (token: string, params?: { stato?: string; tipo?: string; scadenza_imminente?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.stato) qs.append('stato', params.stato);
+    if (params?.tipo) qs.append('tipo', params.tipo);
+    if (params?.scadenza_imminente) qs.append('scadenza_imminente', 'true');
+    const q = qs.toString();
+    return apiCall(`/admin/privacy/richieste${q ? '?' + q : ''}`, { token });
+  },
+  adminEvadiRichiestaPrivacy: (token: string, id: string, data: any) => apiCall(`/admin/privacy/richieste/${id}/evadi`, { method: 'PUT', token, body: data }),
+  adminCountScadenzaPrivacy: (token: string) => apiCall('/admin/privacy/richieste/count-scadenza', { token }),
 };

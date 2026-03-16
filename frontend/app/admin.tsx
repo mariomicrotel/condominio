@@ -22,7 +22,7 @@ interface MediaFile {
   uploadedId?: string;
 }
 
-type Tab = 'dashboard' | 'condomini' | 'utenti' | 'fornitori' | 'sopralluoghi' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'config';
+type Tab = 'dashboard' | 'condomini' | 'utenti' | 'fornitori' | 'sopralluoghi' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'config' | 'privacy';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: 'grid-outline' },
@@ -35,11 +35,139 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'avvisi', label: 'Avvisi', icon: 'megaphone-outline' },
   { key: 'trasmissioni', label: 'Documenti', icon: 'documents-outline' },
   { key: 'config', label: 'Impostazioni', icon: 'settings-outline' },
+  { key: 'privacy', label: 'Privacy', icon: 'shield-checkmark-outline' },
 ];
 
 const QUALITA_OPT = ['Proprietario', 'Inquilino', 'Delegato', 'Altro'];
 const TIPOLOGIE = ['Guasto idraulico', 'Guasto elettrico', 'Ascensore', 'Infiltrazioni', 'Parti comuni', 'Pulizia', 'Sicurezza', 'Altro'];
 const URGENZE = ['Bassa', 'Media', 'Alta', 'Urgente'];
+
+const PRIV_TIPO_LABELS: Record<string, string> = {
+  cancellazione: 'Cancellazione account',
+  limitazione: 'Limitazione trattamento',
+  accesso: 'Accesso ai dati',
+  portabilita: 'Portabilità dati',
+  opposizione: 'Opposizione',
+};
+const PRIV_TIPO_COLORS: Record<string, string> = {
+  cancellazione: '#FEE2E2',
+  limitazione: '#FEF3C7',
+  accesso: '#DBEAFE',
+  portabilita: '#F3E8FF',
+  opposizione: '#FCE7F3',
+};
+const PRIV_STATO_COLORS: Record<string, { bg: string; text: string }> = {
+  ricevuta: { bg: '#DBEAFE', text: '#1D4ED8' },
+  in_lavorazione: { bg: '#FEF9C3', text: '#A16207' },
+  evasa: { bg: '#DCFCE7', text: '#15803D' },
+  rifiutata: { bg: '#FEE2E2', text: '#DC2626' },
+};
+
+function PrivacyAdminTab({ token, richieste, loading, scadenzaCount, filter, onFilterChange, onLoad, onDetail }: {
+  token: string; richieste: any[]; loading: boolean; scadenzaCount: number;
+  filter: any; onFilterChange: (f: any) => void; onLoad: () => void; onDetail: (r: any) => void;
+}) {
+  React.useEffect(() => { onLoad(); }, []);
+
+  const fmtD = (iso: string) => iso ? new Date(iso).toLocaleDateString('it-IT') : '—';
+
+  const FilterChip = ({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) => (
+    <TouchableOpacity
+      style={[pvs.chip, active && pvs.chipActive]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={[pvs.chipText, active && pvs.chipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={loading} onRefresh={onLoad} />}>
+      {/* Banner scadenza imminente */}
+      {scadenzaCount > 0 && (
+        <View style={pvs.alertBanner}>
+          <Ionicons name="alert-circle" size={18} color="#DC2626" />
+          <Text style={pvs.alertText}>
+            {scadenzaCount} {scadenzaCount === 1 ? 'richiesta scade' : 'richieste scadono'} entro 5 giorni!
+          </Text>
+          <TouchableOpacity onPress={() => onFilterChange({ ...filter, scadenza: !filter.scadenza })} style={pvs.alertBtn}>
+            <Text style={pvs.alertBtnText}>{filter.scadenza ? 'Tutte' : 'Mostra'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Filters */}
+      <Text style={pvs.filterLabel}>Filtra per stato:</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+        <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 4 }}>
+          <FilterChip label="Tutte" active={!filter.stato} onPress={() => onFilterChange({ ...filter, stato: undefined })} />
+          {['ricevuta', 'in_lavorazione', 'evasa', 'rifiutata'].map(s => (
+            <FilterChip key={s} label={s.replace('_', ' ')} active={filter.stato === s}
+              onPress={() => onFilterChange({ ...filter, stato: filter.stato === s ? undefined : s })} />
+          ))}
+        </View>
+      </ScrollView>
+
+      <Text style={pvs.filterLabel}>Filtra per tipo:</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+        <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 4 }}>
+          <FilterChip label="Tutti" active={!filter.tipo} onPress={() => onFilterChange({ ...filter, tipo: undefined })} />
+          {Object.entries(PRIV_TIPO_LABELS).map(([k, v]) => (
+            <FilterChip key={k} label={v} active={filter.tipo === k}
+              onPress={() => onFilterChange({ ...filter, tipo: filter.tipo === k ? undefined : k })} />
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* List */}
+      {loading
+        ? <ActivityIndicator size="large" color={Colors.navy} style={{ marginTop: 32 }} />
+        : richieste.length === 0
+          ? <View style={pvs.emptyBox}>
+              <Ionicons name="shield-checkmark-outline" size={48} color={Colors.textMuted} />
+              <Text style={pvs.emptyText}>Nessuna richiesta privacy</Text>
+              <Text style={pvs.emptySubText}>Le richieste degli utenti appariranno qui</Text>
+            </View>
+          : richieste.map(r => {
+              const stato = PRIV_STATO_COLORS[r.stato] || { bg: '#F3F4F6', text: '#374151' };
+              const isScadente = r.giorni_rimanenti !== null && r.giorni_rimanenti !== undefined && r.giorni_rimanenti <= 5
+                && (r.stato === 'ricevuta' || r.stato === 'in_lavorazione');
+              return (
+                <TouchableOpacity key={r.id} style={[pvs.card, isScadente && pvs.cardScadente]} onPress={() => onDetail(r)} activeOpacity={0.8}>
+                  <View style={pvs.cardTop}>
+                    <View style={[pvs.tipoBadge, { backgroundColor: PRIV_TIPO_COLORS[r.tipo] || '#F3F4F6' }]}>
+                      <Text style={pvs.tipoBadgeText}>{PRIV_TIPO_LABELS[r.tipo] || r.tipo}</Text>
+                    </View>
+                    <View style={[pvs.statoBadge, { backgroundColor: stato.bg }]}>
+                      <Text style={[pvs.statoBadgeText, { color: stato.text }]}>{r.stato}</Text>
+                    </View>
+                  </View>
+                  <View style={pvs.cardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={pvs.cardNome}>{r.user_nome || r.user_email || 'Utente rimosso'}</Text>
+                      <Text style={pvs.cardProto}>{r.protocollo}</Text>
+                      <Text style={pvs.cardDate}>Ricevuta: {fmtD(r.created_at)}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      {(r.stato === 'ricevuta' || r.stato === 'in_lavorazione') && (
+                        <View style={[pvs.scadBadge, isScadente && pvs.scadBadgeRed]}>
+                          <Ionicons name="time-outline" size={12} color={isScadente ? '#DC2626' : Colors.textSec} />
+                          <Text style={[pvs.scadText, isScadente && pvs.scadTextRed]}>
+                            {r.giorni_rimanenti !== null ? `${r.giorni_rimanenti}gg` : fmtD(r.scadenza)}
+                          </Text>
+                        </View>
+                      )}
+                      <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} style={{ marginTop: 6 }} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+      }
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+}
 
 const STAT_ITEMS = [
   { key: 'utenti', label: 'Utenti', field: 'totale_utenti', color: '#3B82F6', icon: 'people', tab: 'utenti' as Tab },
@@ -104,6 +232,15 @@ export default function Admin() {
   const [playingVoiceNoteIndex, setPlayingVoiceNoteIndex] = useState<number | null>(null);
   const [voiceNoteSound, setVoiceNoteSound] = useState<any>(null);
 
+  // Privacy Admin state
+  const [richiestePrivacy, setRichiestePrivacy] = useState<any[]>([]);
+  const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [privacyScadenzaCount, setPrivacyScadenzaCount] = useState(0);
+  const [privacyFilter, setPrivacyFilter] = useState<{ stato?: string; tipo?: string; scadenza?: boolean }>({});
+  const [showPrivacyDetail, setShowPrivacyDetail] = useState<any>(null);
+  const [evadiForm, setEvadiForm] = useState({ azione: 'evasa', motivazione_rifiuto: '', note_admin: '' });
+  const [evadiLoading, setEvadiLoading] = useState(false);
+
   // Sopralluoghi constants
   const MOTIVI_SOPRALLUOGO = ['Controllo periodico', 'Verifica post-intervento', 'Sopralluogo su segnalazione', 'Perizia', 'Altro'];
   const GRAVITA_OPTIONS = ['Lieve', 'Moderata', 'Grave', 'Urgente'];
@@ -122,7 +259,23 @@ export default function Admin() {
         api.getCollaboratori(token!).catch(() => []),
       ]);
       setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app); setAvvisi(avv); setUtenti(ut); setTrasmissioni(trasm); setFornitori(forn); setSopralluoghi(sop); setCollaboratori(collab);
+      // Load privacy badge count
+      api.adminCountScadenzaPrivacy(token!).then((r: any) => setPrivacyScadenzaCount(r.scadenza_imminente || 0)).catch(() => {});
     } catch {} finally { setLoading(false); }
+  }, [token]);
+
+  const loadPrivacyRichieste = useCallback(async (filters?: { stato?: string; tipo?: string; scadenza?: boolean }) => {
+    if (!token) return;
+    setPrivacyLoading(true);
+    try {
+      const data = await api.adminListRichiestePrivacy(token, {
+        stato: filters?.stato,
+        tipo: filters?.tipo,
+        scadenza_imminente: filters?.scadenza,
+      });
+      setRichiestePrivacy(Array.isArray(data) ? data : []);
+    } catch { /* silent */ }
+    finally { setPrivacyLoading(false); }
   }, [token]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -911,16 +1064,30 @@ export default function Admin() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabBarScroll}>
           {TABS.map(t => {
             const active = tab === t.key;
+            const showBadge = t.key === 'privacy' && privacyScadenzaCount > 0;
             return (
               <TouchableOpacity
                 key={t.key}
                 testID={`admin-tab-${t.key}`}
                 style={[s.tabPill, active && s.tabPillActive]}
-                onPress={() => setTab(t.key)}
+                onPress={() => {
+                  setTab(t.key);
+                  if (t.key === 'privacy') loadPrivacyRichieste(privacyFilter);
+                }}
                 activeOpacity={0.7}
               >
-                <Ionicons name={(active ? t.icon.replace('-outline', '') : t.icon) as any} size={16} color={active ? Colors.white : Colors.textSec} />
+                <View style={{ position: 'relative' }}>
+                  <Ionicons name={(active ? t.icon.replace('-outline', '') : t.icon) as any} size={16} color={active ? Colors.white : Colors.textSec} />
+                  {showBadge && (
+                    <View style={{ position: 'absolute', top: -4, right: -4, width: 10, height: 10, borderRadius: 5, backgroundColor: '#DC2626' }} />
+                  )}
+                </View>
                 <Text style={[s.tabPillLabel, active && s.tabPillLabelActive]}>{t.label}</Text>
+                {showBadge && (
+                  <View style={{ backgroundColor: '#DC2626', borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 4 }}>
+                    <Text style={{ fontSize: 10, color: '#FFF', fontWeight: '700' }}>{privacyScadenzaCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -1427,9 +1594,167 @@ export default function Admin() {
             <View style={{ height: 32 }} />
           </ScrollView>
         )}
+
+        {tab === 'privacy' && (
+          <PrivacyAdminTab
+            token={token!}
+            richieste={richiestePrivacy}
+            loading={privacyLoading}
+            scadenzaCount={privacyScadenzaCount}
+            filter={privacyFilter}
+            onFilterChange={(f) => {
+              setPrivacyFilter(f);
+              loadPrivacyRichieste(f);
+            }}
+            onLoad={() => loadPrivacyRichieste(privacyFilter)}
+            onDetail={(r: any) => {
+              setShowPrivacyDetail(r);
+              setEvadiForm({ azione: 'evasa', motivazione_rifiuto: '', note_admin: '' });
+            }}
+          />
+        )}
       </View>
 
-      {/* ====== MODALS ====== */}
+      {/* ── Privacy Detail Modal ── */}
+      <Modal visible={!!showPrivacyDetail} transparent animationType="slide" onRequestClose={() => setShowPrivacyDetail(null)}>
+        <View style={s.modalOverlay}>
+          <ScrollView style={[s.modal, { maxHeight: '90%' }]} keyboardShouldPersistTaps="handled">
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={s.modalTitle}>Richiesta Privacy</Text>
+              <TouchableOpacity onPress={() => setShowPrivacyDetail(null)}>
+                <Ionicons name="close" size={24} color={Colors.navy} />
+              </TouchableOpacity>
+            </View>
+
+            {showPrivacyDetail && <>
+              <View style={{ backgroundColor: Colors.bg, borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                {[
+                  { label: 'Protocollo', val: showPrivacyDetail.protocollo },
+                  { label: 'Utente', val: showPrivacyDetail.user_nome || showPrivacyDetail.user_email || '—' },
+                  { label: 'Tipo', val: PRIV_TIPO_LABELS[showPrivacyDetail.tipo] || showPrivacyDetail.tipo },
+                  { label: 'Stato', val: showPrivacyDetail.stato },
+                  { label: 'Ricevuta il', val: showPrivacyDetail.created_at ? new Date(showPrivacyDetail.created_at).toLocaleDateString('it-IT') : '—' },
+                  { label: 'Scadenza', val: showPrivacyDetail.scadenza ? new Date(showPrivacyDetail.scadenza).toLocaleDateString('it-IT') : '—' },
+                  ...(showPrivacyDetail.giorni_rimanenti !== null && showPrivacyDetail.giorni_rimanenti !== undefined ? [{ label: 'Giorni rimasti', val: `${showPrivacyDetail.giorni_rimanenti}` }] : []),
+                  ...(showPrivacyDetail.evasa_il ? [{ label: 'Evasa il', val: new Date(showPrivacyDetail.evasa_il).toLocaleDateString('it-IT') }] : []),
+                  ...(showPrivacyDetail.motivazione_rifiuto ? [{ label: 'Motivazione rifiuto', val: showPrivacyDetail.motivazione_rifiuto }] : []),
+                ].map(({ label, val }) => (
+                  <View key={label} style={{ flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                    <Text style={{ fontSize: 13, color: Colors.textSec, width: 130 }}>{label}</Text>
+                    <Text style={{ fontSize: 13, color: Colors.textMain, fontWeight: '500', flex: 1 }}>{val}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {(showPrivacyDetail.stato === 'ricevuta' || showPrivacyDetail.stato === 'in_lavorazione') && <>
+                <Text style={s.modalLabel}>Azione:</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                  {(['evasa', 'rifiutata'] as const).map(az => (
+                    <TouchableOpacity
+                      key={az}
+                      style={[{ flex: 1, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
+                        evadiForm.azione === az
+                          ? { backgroundColor: az === 'evasa' ? '#DCFCE7' : '#FEE2E2', borderColor: az === 'evasa' ? '#16A34A' : '#DC2626' }
+                          : { backgroundColor: Colors.bg, borderColor: Colors.border }]}
+                      onPress={() => setEvadiForm(p => ({ ...p, azione: az }))}
+                    >
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: az === 'evasa' ? '#15803D' : '#DC2626' }}>
+                        {az === 'evasa' ? '✓ Evadi' : '✗ Rifiuta'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {evadiForm.azione === 'rifiutata' && (
+                  <>
+                    <Text style={s.modalLabel}>Motivazione rifiuto *</Text>
+                    <TextInput
+                      style={[s.input, { height: 72, textAlignVertical: 'top' }]}
+                      multiline
+                      value={evadiForm.motivazione_rifiuto}
+                      onChangeText={v => setEvadiForm(p => ({ ...p, motivazione_rifiuto: v }))}
+                      placeholder="Inserisci la motivazione del rifiuto..."
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </>
+                )}
+
+                <Text style={s.modalLabel}>Note interne (facoltative)</Text>
+                <TextInput
+                  style={[s.input, { height: 72, textAlignVertical: 'top' }]}
+                  multiline
+                  value={evadiForm.note_admin}
+                  onChangeText={v => setEvadiForm(p => ({ ...p, note_admin: v }))}
+                  placeholder="Note di servizio..."
+                  placeholderTextColor={Colors.textMuted}
+                />
+
+                {showPrivacyDetail.tipo === 'cancellazione' && evadiForm.azione === 'evasa' && (
+                  <View style={{ backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#D97706' }}>
+                    <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '600' }}>⚠️ Attenzione</Text>
+                    <Text style={{ fontSize: 13, color: '#92400E', marginTop: 4 }}>
+                      Questa azione anonimizzerà permanentemente l'account dell'utente. L'operazione non è reversibile.
+                    </Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[s.submitBtn, evadiLoading && { opacity: 0.7 }]}
+                  onPress={async () => {
+                    if (evadiForm.azione === 'rifiutata' && !evadiForm.motivazione_rifiuto.trim()) {
+                      Alert.alert('Attenzione', 'Inserisci la motivazione del rifiuto');
+                      return;
+                    }
+                    if (showPrivacyDetail.tipo === 'cancellazione' && evadiForm.azione === 'evasa') {
+                      Alert.alert(
+                        'Conferma anonimizzazione',
+                        'Sei sicuro di voler anonimizzare definitivamente l\'account di questo utente? L\'operazione non è reversibile.',
+                        [
+                          { text: 'Annulla', style: 'cancel' },
+                          {
+                            text: 'Conferma',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setEvadiLoading(true);
+                              try {
+                                await api.adminEvadiRichiestaPrivacy(token!, showPrivacyDetail.id, evadiForm);
+                                Alert.alert('Successo', 'Richiesta evasa. Account anonimizzato.');
+                                setShowPrivacyDetail(null);
+                                loadPrivacyRichieste(privacyFilter);
+                                api.adminCountScadenzaPrivacy(token!).then((r: any) => setPrivacyScadenzaCount(r.scadenza_imminente || 0)).catch(() => {});
+                              } catch (e: any) {
+                                Alert.alert('Errore', e.message);
+                              } finally { setEvadiLoading(false); }
+                            }
+                          }
+                        ]
+                      );
+                    } else {
+                      setEvadiLoading(true);
+                      try {
+                        await api.adminEvadiRichiestaPrivacy(token!, showPrivacyDetail.id, evadiForm);
+                        Alert.alert('Successo', `Richiesta ${evadiForm.azione} con successo`);
+                        setShowPrivacyDetail(null);
+                        loadPrivacyRichieste(privacyFilter);
+                        api.adminCountScadenzaPrivacy(token!).then((r: any) => setPrivacyScadenzaCount(r.scadenza_imminente || 0)).catch(() => {});
+                      } catch (e: any) {
+                        Alert.alert('Errore', e.message);
+                      } finally { setEvadiLoading(false); }
+                    }
+                  }}
+                  disabled={evadiLoading}
+                  activeOpacity={0.8}
+                >
+                  {evadiLoading
+                    ? <ActivityIndicator color={Colors.white} />
+                    : <Text style={s.submitBtnText}>Conferma azione</Text>
+                  }
+                </TouchableOpacity>
+              </>}
+            </>}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Modal: Aggiorna Segnalazione */}
       <Modal visible={!!modalSeg} transparent animationType="slide" onRequestClose={() => setModalSeg(null)}>
@@ -2223,4 +2548,42 @@ const s = StyleSheet.create({
   removeBtn: { padding: 4 },
   progressBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.skyLight, borderRadius: 10, padding: 12, marginBottom: 12, gap: 8 },
   progressText: { fontSize: 13, fontWeight: '500', color: Colors.navy },
+});
+
+
+// Privacy Admin Tab styles
+const pvs = StyleSheet.create({
+  alertBanner: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEE2E2',
+    borderRadius: 10, padding: 12, marginBottom: 14, borderLeftWidth: 3, borderLeftColor: '#DC2626',
+  },
+  alertText: { fontSize: 13, color: '#DC2626', fontWeight: '600', flex: 1, marginLeft: 8 },
+  alertBtn: { backgroundColor: '#DC2626', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  alertBtnText: { fontSize: 12, fontWeight: '600', color: '#FFFFFF' },
+  filterLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSec, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white },
+  chipActive: { backgroundColor: Colors.navy, borderColor: Colors.navy },
+  chipText: { fontSize: 13, color: Colors.textSec, fontWeight: '500' },
+  chipTextActive: { color: Colors.white },
+  emptyBox: { alignItems: 'center', paddingVertical: 48 },
+  emptyText: { fontSize: 16, fontWeight: '600', color: Colors.textSec, marginTop: 12 },
+  emptySubText: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
+  card: {
+    backgroundColor: Colors.white, borderRadius: 12, padding: 14, marginBottom: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+  },
+  cardScadente: { borderLeftWidth: 3, borderLeftColor: '#DC2626' },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  cardRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  tipoBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  tipoBadgeText: { fontSize: 12, fontWeight: '600', color: Colors.navy },
+  statoBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  statoBadgeText: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  cardNome: { fontSize: 14, fontWeight: '600', color: Colors.textMain },
+  cardProto: { fontSize: 12, color: Colors.sky, fontWeight: '500', marginTop: 1 },
+  cardDate: { fontSize: 12, color: Colors.textSec, marginTop: 2 },
+  scadBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, gap: 3 },
+  scadBadgeRed: { backgroundColor: '#FEE2E2' },
+  scadText: { fontSize: 12, color: Colors.textSec, fontWeight: '500' },
+  scadTextRed: { color: '#DC2626', fontWeight: '700' },
 });
