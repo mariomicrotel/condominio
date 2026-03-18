@@ -41,6 +41,77 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 const QUALITA_OPT = ['Proprietario', 'Inquilino', 'Delegato', 'Altro'];
 const TIPOLOGIE = ['Guasto idraulico', 'Guasto elettrico', 'Ascensore', 'Infiltrazioni', 'Parti comuni', 'Pulizia', 'Sicurezza', 'Altro'];
 const URGENZE = ['Bassa', 'Media', 'Alta', 'Urgente'];
+const TIPO_COND_OPT = ['Condominio', 'Palazzo', 'Edificio', 'Complesso residenziale', 'Villaggio', 'Altro'];
+
+// ── Condominio Form Fields ─────────────────────────────────────────────────────
+function CondominioFormFields({ form, onChange }: { form: any; onChange: (key: string, value: string) => void }) {
+  const inp = (placeholder: string, key: string, opts?: { multiline?: boolean; keyboard?: any; testID?: string }) => (
+    <TextInput
+      testID={opts?.testID || `cond-${key}-input`}
+      style={[cfStyles.input, opts?.multiline && { height: 72, textAlignVertical: 'top' }]}
+      placeholder={placeholder}
+      placeholderTextColor={Colors.textMuted}
+      value={form[key] || ''}
+      onChangeText={v => onChange(key, v)}
+      keyboardType={opts?.keyboard}
+      multiline={opts?.multiline}
+    />
+  );
+
+  return (
+    <>
+      {/* ANAGRAFICA */}
+      <Text style={cfStyles.sectionHeader}>Anagrafica</Text>
+      <PickerSelect
+        label="Tipo *"
+        value={form.tipo || 'Condominio'}
+        options={TIPO_COND_OPT}
+        onSelect={v => onChange('tipo', v)}
+        testID="cond-tipo-picker"
+      />
+      {inp('Nome condominio *', 'nome', { testID: 'cond-nome-input' })}
+      {inp('Codice Fiscale', 'codice_fiscale', { testID: 'cond-cf-input' })}
+
+      {/* INDIRIZZO */}
+      <Text style={cfStyles.sectionHeader}>Indirizzo</Text>
+      {inp('Via / Piazza *', 'indirizzo', { testID: 'cond-indirizzo-input' })}
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ width: 100 }}>{inp('CAP', 'cap', { keyboard: 'number-pad' })}</View>
+        <View style={{ flex: 1 }}>{inp('Città', 'citta')}</View>
+        <View style={{ width: 60 }}>{inp('Prov.', 'provincia')}</View>
+      </View>
+
+      {/* DATI GESTIONALI */}
+      <Text style={cfStyles.sectionHeader}>Date gestionali</Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ flex: 1 }}>{inp('Data apertura esercizio (gg/mm/aaaa)', 'data_apertura_esercizio')}</View>
+        <View style={{ flex: 1 }}>{inp('Data costruzione', 'data_costruzione')}</View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ flex: 1 }}>{inp('Inizio incarico (gg/mm/aaaa)', 'data_inizio_incarico')}</View>
+        <View style={{ flex: 1 }}>{inp('Fine incarico (gg/mm/aaaa)', 'data_fine_incarico')}</View>
+      </View>
+
+      {/* BANCA */}
+      <Text style={cfStyles.sectionHeader}>Dati bancari</Text>
+      {inp('Banca', 'banca')}
+      {inp('IBAN', 'iban')}
+      {inp('SWIFT / BIC', 'swift')}
+
+      {/* CATASTO */}
+      <Text style={cfStyles.sectionHeader}>Dati catastali</Text>
+      {inp('Dati catastali', 'dati_catastali', { multiline: true })}
+
+      {/* NOTE */}
+      <Text style={cfStyles.sectionHeader}>Note</Text>
+      {inp('Note interne', 'note', { multiline: true, testID: 'cond-note-input' })}
+    </>
+  );
+}
+const cfStyles = StyleSheet.create({
+  sectionHeader: { fontSize: 12, fontWeight: '700', color: Colors.navy, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 12, marginBottom: 6 },
+  input: { height: 48, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, paddingHorizontal: 14, marginBottom: 10, fontSize: 15, color: Colors.textMain },
+});
 
 const PRIV_TIPO_LABELS: Record<string, string> = {
   cancellazione: 'Cancellazione account',
@@ -195,7 +266,14 @@ export default function Admin() {
   const [showNewCond, setShowNewCond] = useState(false);
   const [showAssocModal, setShowAssocModal] = useState<any>(null);
   const [newAvviso, setNewAvviso] = useState({ titolo: '', testo: '', categoria: 'Avviso generico', condominio_id: '' });
-  const [newCond, setNewCond] = useState({ nome: '', indirizzo: '', codice_fiscale: '', note: '' });
+  const [newCond, setNewCond] = useState({
+    tipo: 'Condominio', nome: '', indirizzo: '', cap: '', citta: '', provincia: '',
+    codice_fiscale: '', data_apertura_esercizio: '', data_costruzione: '',
+    data_inizio_incarico: '', data_fine_incarico: '',
+    banca: '', iban: '', swift: '', dati_catastali: '', note: ''
+  });
+  const [editCond, setEditCond] = useState<any>(null);
+  const [importingCsv, setImportingCsv] = useState(false);
   const [assocForm, setAssocForm] = useState({ condominio_id: '', unita_immobiliare: '', qualita: 'Proprietario' });
   const [config, setConfig] = useState({ google_maps_api_key: '', firebase_key: '', studio_telefono: '', studio_email: '', studio_pec: '' });
   const [configLoading, setConfigLoading] = useState(false);
@@ -302,9 +380,39 @@ export default function Admin() {
       const c = await api.createCondominio(token!, newCond);
       setCondomini(p => [...p, c]);
       setShowNewCond(false);
-      setNewCond({ nome: '', indirizzo: '', codice_fiscale: '', note: '' });
+      const emptyForm = { tipo: 'Condominio', nome: '', indirizzo: '', cap: '', citta: '', provincia: '', codice_fiscale: '', data_apertura_esercizio: '', data_costruzione: '', data_inizio_incarico: '', data_fine_incarico: '', banca: '', iban: '', swift: '', dati_catastali: '', note: '' };
+      setNewCond(emptyForm);
       Alert.alert('Creato', 'Condominio aggiunto');
     } catch (e: any) { Alert.alert('Errore', e.message); }
+  };
+
+  const updateCond = async () => {
+    if (!editCond || !editCond.nome.trim() || !editCond.indirizzo.trim()) { Alert.alert('Attenzione', 'Nome e indirizzo sono obbligatori'); return; }
+    try {
+      const updated = await api.updateCondominio(token!, editCond.id, editCond);
+      setCondomini(p => p.map(c => c.id === editCond.id ? updated : c));
+      setEditCond(null);
+      Alert.alert('Salvato', 'Condominio aggiornato');
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+  };
+
+  const handleImportCsv = async () => {
+    const DocumentPicker = await import('expo-document-picker');
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/vnd.ms-excel', 'text/csv', 'application/octet-stream', '*/*'],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    setImportingCsv(true);
+    try {
+      const file = { uri: asset.uri, name: asset.name || 'import.xls', type: asset.mimeType || 'application/octet-stream' };
+      const res = await api.importCondominiFile(token!, file);
+      Alert.alert('Import completato', `${res.creati} creati, ${res.aggiornati} aggiornati su ${res.righe_elaborate} righe.`);
+      const updated = await api.getCondomini(token!);
+      setCondomini(updated);
+    } catch (e: any) { Alert.alert('Errore', e.message || 'Errore durante l\'import'); }
+    finally { setImportingCsv(false); }
   };
 
   const deleteCond = (id: string, nome: string) => {
@@ -1143,27 +1251,85 @@ export default function Admin() {
         {/* ====== CONDOMINI ====== */}
         {tab === 'condomini' && (
           <View style={{ flex: 1 }}>
-            <TouchableOpacity testID="admin-new-cond-btn" style={s.addBtn} onPress={() => setShowNewCond(true)}>
-              <Ionicons name="add" size={22} color={Colors.white} />
-              <Text style={s.addBtnText}>Nuovo Condominio</Text>
-            </TouchableOpacity>
+            {/* Action buttons row */}
+            <View style={{ flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 12, marginBottom: 4 }}>
+              <TouchableOpacity testID="admin-new-cond-btn" style={[s.addBtn, { flex: 1, marginTop: 0 }]} onPress={() => setShowNewCond(true)}>
+                <Ionicons name="add" size={20} color={Colors.white} />
+                <Text style={s.addBtnText}>Nuovo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.addBtn, { flex: 1, marginTop: 0, backgroundColor: importingCsv ? Colors.textMuted : '#7C3AED' }]}
+                onPress={handleImportCsv}
+                disabled={importingCsv}
+              >
+                {importingCsv
+                  ? <ActivityIndicator size="small" color={Colors.white} />
+                  : <Ionicons name="cloud-upload-outline" size={20} color={Colors.white} />
+                }
+                <Text style={s.addBtnText}>{importingCsv ? 'Import...' : 'Importa XLS/CSV'}</Text>
+              </TouchableOpacity>
+            </View>
+
             <FlatList data={condomini} keyExtractor={i => i.id} contentContainerStyle={s.content}
-              ListEmptyComponent={<Text style={s.emptyText}>Nessun condominio</Text>}
+              ListEmptyComponent={<Text style={s.emptyText}>Nessun condominio. Usa "Importa XLS/CSV" per caricare i dati dal gestionale.</Text>}
               renderItem={({ item }) => (
                 <View testID={`admin-cond-${item.id}`} style={s.listCard}>
+                  {/* Header row */}
                   <View style={s.listRow}>
                     <View style={[s.iconCircle, { backgroundColor: '#DCFCE7' }]}>
                       <Ionicons name="business" size={18} color="#16A34A" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.listTitle}>{item.nome}</Text>
-                      <Text style={s.listSub2}>{item.indirizzo}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={s.listTitle}>{item.nome}</Text>
+                        {item.tipo && item.tipo !== 'Condominio' && (
+                          <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+                            <Text style={{ fontSize: 11, color: '#4F46E5', fontWeight: '600' }}>{item.tipo}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={s.listSub2}>
+                        {[item.indirizzo, item.cap, item.citta, item.provincia].filter(Boolean).join(' – ')}
+                      </Text>
                       {item.codice_fiscale ? <Text style={s.listMeta}>CF: {item.codice_fiscale}</Text> : null}
                     </View>
-                    <TouchableOpacity testID={`admin-del-cond-${item.id}`} onPress={() => deleteCond(item.id, item.nome)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                      <Ionicons name="trash-outline" size={20} color={Colors.error} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                      <TouchableOpacity onPress={() => setEditCond({ ...item })} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Ionicons name="create-outline" size={20} color={Colors.sky} />
+                      </TouchableOpacity>
+                      <TouchableOpacity testID={`admin-del-cond-${item.id}`} onPress={() => deleteCond(item.id, item.nome)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
+
+                  {/* Extra fields grid - only if any populated */}
+                  {(item.iban || item.banca || item.data_inizio_incarico || item.dati_catastali) && (
+                    <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border }}>
+                      {item.banca || item.iban ? (
+                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                          {item.banca ? (
+                            <View style={cs2.pill}>
+                              <Ionicons name="card-outline" size={12} color={Colors.textSec} />
+                              <Text style={cs2.pillText}>{item.banca}</Text>
+                            </View>
+                          ) : null}
+                          {item.iban ? (
+                            <View style={cs2.pill}>
+                              <Text style={cs2.pillText}>{item.iban}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
+                      {item.data_inizio_incarico || item.data_apertura_esercizio ? (
+                        <View style={{ flexDirection: 'row', gap: 16, marginTop: 2 }}>
+                          {item.data_inizio_incarico ? <Text style={cs2.metaText}>Incarico dal {item.data_inizio_incarico}{item.data_fine_incarico ? ` al ${item.data_fine_incarico}` : ''}</Text> : null}
+                          {item.data_apertura_esercizio ? <Text style={cs2.metaText}>Esercizio: {item.data_apertura_esercizio}</Text> : null}
+                        </View>
+                      ) : null}
+                      {item.dati_catastali ? <Text style={[cs2.metaText, { marginTop: 2 }]}>Catasto: {item.dati_catastali}</Text> : null}
+                    </View>
+                  )}
                 </View>
               )} />
           </View>
@@ -1865,15 +2031,38 @@ export default function Admin() {
       {/* Modal: Nuovo Condominio */}
       <Modal visible={showNewCond} transparent animationType="slide" onRequestClose={() => setShowNewCond(false)}>
         <View style={s.modalOverlay}>
-          <ScrollView style={s.modal} keyboardShouldPersistTaps="handled">
-            <Text style={s.modalTitle}>Nuovo Condominio</Text>
-            <TextInput testID="cond-nome-input" style={s.input} placeholder="Nome condominio *" value={newCond.nome} onChangeText={v => setNewCond(p => ({ ...p, nome: v }))} placeholderTextColor={Colors.textMuted} />
-            <TextInput testID="cond-indirizzo-input" style={s.input} placeholder="Indirizzo *" value={newCond.indirizzo} onChangeText={v => setNewCond(p => ({ ...p, indirizzo: v }))} placeholderTextColor={Colors.textMuted} />
-            <TextInput testID="cond-cf-input" style={s.input} placeholder="Codice Fiscale" value={newCond.codice_fiscale} onChangeText={v => setNewCond(p => ({ ...p, codice_fiscale: v }))} placeholderTextColor={Colors.textMuted} />
-            <TextInput testID="cond-note-input" style={[s.input, { height: 80, textAlignVertical: 'top' }]} placeholder="Note" value={newCond.note} onChangeText={v => setNewCond(p => ({ ...p, note: v }))} multiline placeholderTextColor={Colors.textMuted} />
-            <PrimaryButton title="Crea Condominio" onPress={createCond} testID="cond-create-btn" />
-            <TouchableOpacity style={s.closeBtn} onPress={() => setShowNewCond(false)}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
-          </ScrollView>
+          <View style={[s.modal, { maxHeight: '92%' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <Text style={s.modalTitle}>Nuovo Condominio</Text>
+              <TouchableOpacity onPress={() => setShowNewCond(false)}>
+                <Ionicons name="close" size={24} color={Colors.navy} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <CondominioFormFields form={newCond} onChange={(k, v) => setNewCond((p: any) => ({ ...p, [k]: v }))} />
+              <PrimaryButton title="Crea Condominio" onPress={createCond} testID="cond-create-btn" />
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Modifica Condominio */}
+      <Modal visible={!!editCond} transparent animationType="slide" onRequestClose={() => setEditCond(null)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modal, { maxHeight: '92%' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <Text style={s.modalTitle}>Modifica Condominio</Text>
+              <TouchableOpacity onPress={() => setEditCond(null)}>
+                <Ionicons name="close" size={24} color={Colors.navy} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {editCond && <CondominioFormFields form={editCond} onChange={(k, v) => setEditCond((p: any) => ({ ...p, [k]: v }))} />}
+              <PrimaryButton title="Salva Modifiche" onPress={updateCond} testID="cond-update-btn" />
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -2550,6 +2739,13 @@ const s = StyleSheet.create({
   progressText: { fontSize: 13, fontWeight: '500', color: Colors.navy },
 });
 
+
+// Condominio card extra styles
+const cs2 = StyleSheet.create({
+  pill: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: Colors.border, gap: 4 },
+  pillText: { fontSize: 12, color: Colors.textSec, fontWeight: '500' },
+  metaText: { fontSize: 12, color: Colors.textSec },
+});
 
 // Privacy Admin Tab styles
 const pvs = StyleSheet.create({

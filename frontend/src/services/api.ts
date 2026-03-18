@@ -27,6 +27,7 @@ export const api = {
 
   getCondomini: (token: string) => apiCall('/condomini', { token }),
   createCondominio: (token: string, data: any) => apiCall('/condomini', { method: 'POST', token, body: data }),
+  updateCondominio: (token: string, id: string, data: any) => apiCall(`/condomini/${id}`, { method: 'PUT', token, body: data }),
   deleteCondominio: (token: string, id: string) => apiCall(`/condomini/${id}`, { method: 'DELETE', token }),
 
   createSegnalazione: (token: string, data: any) => apiCall('/segnalazioni', { method: 'POST', token, body: data }),
@@ -183,4 +184,16 @@ export const api = {
   },
   adminEvadiRichiestaPrivacy: (token: string, id: string, data: any) => apiCall(`/admin/privacy/richieste/${id}/evadi`, { method: 'PUT', token, body: data }),
   adminCountScadenzaPrivacy: (token: string) => apiCall('/admin/privacy/richieste/count-scadenza', { token }),
+  importCondominiFile: async (token: string, file: any): Promise<any> => {
+    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BACKEND_URL}/api/admin/condomini/import`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: 'Errore' })); throw new Error(e.detail || 'Errore'); }
+    return res.json();
+  },
 };
