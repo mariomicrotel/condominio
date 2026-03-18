@@ -20,7 +20,7 @@ const NAV: { key: Tab; label: string; icon: string; color: string }[] = [
   { key: 'utenti',       label: 'Utenti',           icon: 'people',                color: '#3B82F6' },
   { key: 'fornitori',    label: 'Fornitori',        icon: 'construct',             color: '#F59E0B' },
   { key: 'sopralluoghi', label: 'Sopralluoghi',     icon: 'search',                color: '#8B5CF6' },
-  { key: 'segnalazioni', label: 'Guasti',           icon: 'warning',               color: '#EF4444' },
+  { key: 'segnalazioni', label: 'Segnalazioni',     icon: 'warning',               color: '#EF4444' },
   { key: 'appuntamenti', label: 'Appuntamenti',     icon: 'calendar',              color: '#0EA5E9' },
   { key: 'avvisi',       label: 'Avvisi',           icon: 'megaphone',             color: '#F97316' },
   { key: 'trasmissioni', label: 'Documenti',        icon: 'documents',             color: '#14B8A6' },
@@ -712,7 +712,7 @@ export default function AdminDesktop() {
               {/* ── SEGNALAZIONI ── */}
               {tab === 'segnalazioni' && (
                 <View>
-                  <PageHeader title="Guasti e Segnalazioni" subtitle={`${filteredSeg.length} segnalazioni`}
+                  <PageHeader title="Segnalazioni" subtitle={`${filteredSeg.length} segnalazioni`}
                     actions={<Btn label="Nuova segnalazione" icon="add" onPress={() => { setFormData({}); setShowModal('newSeg'); }} />}
                   />
                   <SearchBar value={searchSeg} onChange={setSearchSeg} placeholder="Cerca per protocollo, tipo, stato…" />

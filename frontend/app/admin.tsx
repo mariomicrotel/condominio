@@ -30,7 +30,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'utenti', label: 'Utenti', icon: 'people-outline' },
   { key: 'fornitori', label: 'Fornitori', icon: 'construct-outline' },
   { key: 'sopralluoghi', label: 'Sopralluoghi', icon: 'search-outline' },
-  { key: 'segnalazioni', label: 'Guasti', icon: 'warning-outline' },
+  { key: 'segnalazioni', label: 'Segnalazioni', icon: 'warning-outline' },
   { key: 'appuntamenti', label: 'Appuntamenti', icon: 'calendar-outline' },
   { key: 'avvisi', label: 'Avvisi', icon: 'megaphone-outline' },
   { key: 'trasmissioni', label: 'Documenti', icon: 'documents-outline' },
