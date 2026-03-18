@@ -9,7 +9,7 @@ import os
 import json
 
 # Configuration
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://property-manager-208.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://backend-refactor-86.preview.emergentagent.com')
 API_BASE = f"{BASE_URL}/api"
 
 # Test data

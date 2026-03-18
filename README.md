@@ -537,7 +537,7 @@ JWT_SECRET="tua-chiave-segreta-qui"
 ### Frontend (`frontend/.env`)
 
 ```env
-EXPO_TUNNEL_SUBDOMAIN=property-manager-208
+EXPO_TUNNEL_SUBDOMAIN=backend-refactor-86
 EXPO_PACKAGER_HOSTNAME=https://tuo-dominio.com
 EXPO_PUBLIC_BACKEND_URL=https://tuo-dominio.com
 ```
