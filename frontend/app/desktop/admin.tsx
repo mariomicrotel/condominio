@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { api } from '../../src/services/api';
 import { Colors } from '../../src/constants/theme';
+import SopralluogoDetail from '../../src/components/desktop/SopralluogoDetail';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = 'dashboard' | 'condomini' | 'utenti' | 'fornitori' | 'sopralluoghi' |
@@ -263,10 +264,13 @@ export default function AdminDesktop() {
   const [searchUtenti, setSearchUtenti] = useState('');
   const [searchForn, setSearchForn] = useState('');
   const [searchSeg, setSearchSeg] = useState('');
+  const [searchSop, setSearchSop] = useState('');
+  const [sopFilter, setSopFilter] = useState<'tutti' | 'in_corso' | 'completato'>('tutti');
 
   // Modal states
   const [showModal, setShowModal] = useState<string | null>(null);
   const [selected, setSelected] = useState<any>(null);
+  const [selectedSopId, setSelectedSopId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
 
   const loadAll = useCallback(async () => {
@@ -618,22 +622,89 @@ export default function AdminDesktop() {
               {/* ── SOPRALLUOGHI ── */}
               {tab === 'sopralluoghi' && (
                 <View>
-                  <PageHeader title="Sopralluoghi" subtitle={`${sopralluoghi.length} sopralluoghi totali`} />
+                  <PageHeader title="Sopralluoghi" subtitle={`${sopralluoghi.length} sopralluoghi totali`}
+                    actions={<Btn label="Aggiorna" icon="refresh-outline" onPress={loadAll} outline />}
+                  />
+
+                  {/* Filtri e ricerca */}
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+                    <View style={{ flex: 1 }}>
+                      <SearchBar value={searchSop} onChange={setSearchSop} placeholder="Cerca per condominio, collaboratore, motivo…" />
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {(['tutti', 'completato', 'in_corso'] as const).map(f => (
+                        <TouchableOpacity
+                          key={f}
+                          style={[
+                            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: sopFilter === f ? Colors.navy : Colors.border },
+                            sopFilter === f && { backgroundColor: Colors.navy },
+                          ]}
+                          onPress={() => setSopFilter(f)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: sopFilter === f ? Colors.white : Colors.textSec }}>
+                            {f === 'tutti' ? 'Tutti' : f === 'completato' ? 'Completati' : 'In corso'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
                   <DataTable
                     columns={[
                       { key: 'condominio_nome', label: 'Condominio', flex: 2, render: row => <Text style={dt.cell}>{condomini.find(c => c.id === row.condominio_id)?.nome || row.condominio_id}</Text> },
                       { key: 'collaboratore', label: 'Collaboratore', flex: 1.5, render: row => <Text style={dt.cell}>{collaboratori.find(c => c.id === row.collaboratore_id)?.nome || '—'}</Text> },
                       { key: 'data', label: 'Data', flex: 1, render: row => <Text style={dt.cell}>{fmtDate(row.data || row.created_at)}</Text> },
-                      { key: 'stato', label: 'Stato', flex: 1, render: row => <StatoBadge stato={row.stato} /> },
-                      { key: 'checklist', label: 'Checklist', flex: 1, render: row => {
+                      { key: 'motivo', label: 'Motivo', flex: 1.2, render: row => <Text style={dt.cell} numberOfLines={1}>{row.motivo || '—'}</Text> },
+                      { key: 'stato', label: 'Stato', flex: 0.8, render: row => <StatoBadge stato={row.stato} /> },
+                      { key: 'checklist', label: 'Checklist', flex: 1.2, render: row => {
                         const items = row.checklist || [];
                         const ok = items.filter((i: any) => i.stato === 'ok').length;
                         const anom = items.filter((i: any) => i.stato === 'anomalia').length;
-                        return <Text style={dt.cell}>{ok} OK · {anom} anomalie / {items.length}</Text>;
+                        return (
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
+                            <Text style={{ fontSize: 12, color: '#15803D', fontWeight: '600' }}>{ok} OK</Text>
+                            <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '600' }}>{anom} AN</Text>
+                            <Text style={{ fontSize: 12, color: Colors.textMuted }}>/ {items.length}</Text>
+                          </View>
+                        );
                       }},
+                      { key: 'media', label: 'Media', flex: 0.8, render: row => {
+                        const items = row.checklist || [];
+                        const hasMedia = items.some((i: any) => 
+                          i.anomalia?.foto_ids?.length > 0 || i.anomalia?.nota_vocale_ids?.length > 0
+                        );
+                        const hasVoiceNote = row.nota_vocale_generale_id || row.nota_vocale_finale_id;
+                        return (
+                          <View style={{ flexDirection: 'row', gap: 4 }}>
+                            {hasMedia && <Ionicons name="camera" size={14} color="#6366F1" />}
+                            {hasVoiceNote && <Ionicons name="mic" size={14} color="#6366F1" />}
+                            {!hasMedia && !hasVoiceNote && <Text style={{ fontSize: 12, color: Colors.textMuted }}>—</Text>}
+                          </View>
+                        );
+                      }},
+                      { key: 'action', label: '', flex: 0.6, render: row => (
+                        <TouchableOpacity
+                          style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start' }}
+                          onPress={() => { setSelectedSopId(row.id); setShowModal('detailSop'); }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="eye-outline" size={16} color="#6366F1" />
+                        </TouchableOpacity>
+                      )},
                     ]}
-                    data={sopralluoghi}
-                    emptyText="Nessun sopralluogo"
+                    data={sopralluoghi
+                      .filter(sop => sopFilter === 'tutti' || sop.stato === sopFilter)
+                      .filter(sop => {
+                        if (!searchSop.trim()) return true;
+                        const q = searchSop.toLowerCase();
+                        const condName = condomini.find(c => c.id === sop.condominio_id)?.nome || '';
+                        const collabName = collaboratori.find(c => c.id === sop.collaboratore_id)?.nome || '';
+                        return [condName, collabName, sop.motivo, sop.stato, sop.note_generali].join(' ').toLowerCase().includes(q);
+                      })
+                    }
+                    onRowPress={row => { setSelectedSopId(row.id); setShowModal('detailSop'); }}
+                    emptyText="Nessun sopralluogo trovato"
                   />
                 </View>
               )}
@@ -1012,6 +1083,23 @@ export default function AdminDesktop() {
         <DeskModal visible title={selected.titolo} onClose={() => { setShowModal(null); setSelected(null); }}>
           <Text style={{ fontSize: 14, color: Colors.textSec, marginBottom: 8 }}>{selected.categoria} · {fmtDate(selected.created_at)}</Text>
           <Text style={{ fontSize: 15, color: Colors.textMain, lineHeight: 22 }}>{selected.testo}</Text>
+        </DeskModal>
+      )}
+
+      {/* Sopralluogo Detail Modal */}
+      {showModal === 'detailSop' && selectedSopId && token && (
+        <DeskModal
+          visible
+          title="Dettaglio Sopralluogo"
+          onClose={() => { setShowModal(null); setSelectedSopId(null); }}
+          width={820}
+        >
+          <SopralluogoDetail
+            sopralluogoId={selectedSopId}
+            token={token}
+            condominiMap={Object.fromEntries(condomini.map(c => [c.id, c.nome]))}
+            collaboratoriMap={Object.fromEntries(collaboratori.map(c => [c.id, `${c.nome} ${c.cognome || ''}`]))}
+          />
         </DeskModal>
       )}
     </View>

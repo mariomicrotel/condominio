@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { api } from '../../src/services/api';
 import { Colors } from '../../src/constants/theme';
+import SopralluogoDetail from '../../src/components/desktop/SopralluogoDetail';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = 'dashboard' | 'sopralluoghi' | 'condomini' | 'segnalazioni';
@@ -468,76 +469,19 @@ export default function CollaboratoreDesktop() {
 
       {/* ── MODALS ── */}
 
-      {/* Sopralluogo Detail */}
-      {showModal === 'detailSop' && selected && (
+      {/* Sopralluogo Detail - using shared component */}
+      {showModal === 'detailSop' && selected && token && (
         <DeskModal
           visible
-          title={`Sopralluogo — ${condomini.find(c => c.id === selected.condominio_id)?.nome || 'N/D'}`}
+          title="Dettaglio Sopralluogo"
           onClose={() => { setShowModal(null); setSelected(null); }}
-          width={700}
+          width={820}
         >
-          {/* Info header */}
-          <View style={{ flexDirection: 'row', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-            {[
-              { l: 'Data', v: fmtDate(selected.data || selected.created_at) },
-              { l: 'Stato', v: selected.stato },
-              { l: 'Valutazione', v: selected.valutazione_generale || '—' },
-            ].map(({ l, v }) => (
-              <View key={l} style={{ flex: 1, minWidth: 120, backgroundColor: Colors.bg, padding: 12, borderRadius: 10 }}>
-                <Text style={{ fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase', fontWeight: '600' }}>{l}</Text>
-                <Text style={{ fontSize: 15, color: Colors.textMain, fontWeight: '600', marginTop: 4 }}>{v}</Text>
-              </View>
-            ))}
-          </View>
-
-          {selected.note_finali ? (
-            <View style={{ backgroundColor: '#FFFBEB', padding: 12, borderRadius: 10, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: '#F59E0B' }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E', marginBottom: 4 }}>Note finali</Text>
-              <Text style={{ fontSize: 13, color: '#92400E' }}>{selected.note_finali}</Text>
-            </View>
-          ) : null}
-
-          {/* Checklist */}
-          <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.navy, marginBottom: 12 }}>
-            Checklist ({(selected.checklist || []).length} voci)
-          </Text>
-          {(selected.checklist || []).map((item: any, idx: number) => (
-            <View key={item.id || idx} style={{
-              flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12,
-              borderBottomWidth: 1, borderBottomColor: Colors.border,
-              backgroundColor: item.stato === 'anomalia' ? '#FEF2F2' : item.stato === 'ok' ? '#F0FDF4' : Colors.white,
-              borderRadius: idx === 0 ? 10 : 0,
-            }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, color: Colors.textMain, fontWeight: '500' }}>{item.nome || item.voce}</Text>
-                {item.anomalia && (
-                  <View style={{ marginTop: 4, flexDirection: 'row', gap: 8 }}>
-                    <Text style={{ fontSize: 12, color: '#DC2626', fontWeight: '600' }}>Anomalia: {item.anomalia.gravita || '—'}</Text>
-                    {item.anomalia.descrizione && <Text style={{ fontSize: 12, color: Colors.textSec }}>{item.anomalia.descrizione}</Text>}
-                  </View>
-                )}
-              </View>
-              {selected.stato === 'in_corso' && (
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  <TouchableOpacity
-                    style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: item.stato === 'ok' ? '#15803D' : Colors.bg }}
-                    onPress={() => updateChecklistItem(selected.id, item.id, 'ok')}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: item.stato === 'ok' ? Colors.white : Colors.textSec }}>OK</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: item.stato === 'anomalia' ? '#DC2626' : Colors.bg }}
-                    onPress={() => updateChecklistItem(selected.id, item.id, 'anomalia')}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: item.stato === 'anomalia' ? Colors.white : Colors.textSec }}>Anomalia</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              {selected.stato !== 'in_corso' && (
-                <StatoBadge stato={item.stato} />
-              )}
-            </View>
-          ))}
+          <SopralluogoDetail
+            sopralluogoId={selected.id}
+            token={token}
+            condominiMap={Object.fromEntries(condomini.map(c => [c.id, c.nome]))}
+          />
         </DeskModal>
       )}
     </View>
