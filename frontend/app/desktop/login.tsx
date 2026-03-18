@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
@@ -7,22 +7,44 @@ import { Colors } from '../../src/constants/theme';
 
 export default function DesktopLogin() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, loginCollaboratore } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) { Alert.alert('Attenzione', 'Inserisci email e password'); return; }
+    if (!email.trim() || !password.trim()) {
+      setError('Inserisci email e password');
+      return;
+    }
     setLoading(true);
+    setError('');
     try {
+      // Try regular login first (for admin users)
       const u = await login(email.trim(), password);
-      if (u.ruolo === 'admin') router.replace('/desktop/admin');
-      else if (u.ruolo === 'collaboratore') router.replace('/desktop/collaboratore');
-      else Alert.alert('Accesso negato', 'Questa area è riservata ad Amministratori e Collaboratori.');
-    } catch (e: any) { Alert.alert('Errore', e.message || 'Credenziali non valide'); }
-    finally { setLoading(false); }
+      if (u.ruolo === 'admin') {
+        router.replace('/desktop/admin');
+        return;
+      }
+      // Non-admin/non-collaboratore from regular login
+      setError('Questa area è riservata ad Amministratori e Collaboratori.');
+    } catch {
+      // Regular login failed, try collaboratore login
+      try {
+        const u = await loginCollaboratore(email.trim(), password);
+        if (u.ruolo === 'collaboratore') {
+          router.replace('/desktop/collaboratore');
+          return;
+        }
+        setError('Questa area è riservata ad Amministratori e Collaboratori.');
+      } catch (e2: any) {
+        setError(e2.message || 'Credenziali non valide');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,6 +79,13 @@ export default function DesktopLogin() {
           <Text style={s.cardTitle}>Accesso Portale</Text>
           <Text style={s.cardSub}>Area riservata ad Amministratori e Collaboratori</Text>
 
+          {error ? (
+            <View style={s.errorBanner}>
+              <Ionicons name="alert-circle" size={16} color="#DC2626" />
+              <Text style={s.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
           <View style={s.field}>
             <Text style={s.label}>Email</Text>
             <View style={s.inputWrap}>
@@ -66,9 +95,10 @@ export default function DesktopLogin() {
                 placeholder="admin@tardugno.it"
                 placeholderTextColor={Colors.textMuted}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => { setEmail(v); setError(''); }}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                onSubmitEditing={handleLogin}
               />
             </View>
           </View>
@@ -82,8 +112,9 @@ export default function DesktopLogin() {
                 placeholder="••••••••"
                 placeholderTextColor={Colors.textMuted}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(v) => { setPassword(v); setError(''); }}
                 secureTextEntry={!showPw}
+                onSubmitEditing={handleLogin}
               />
               <TouchableOpacity onPress={() => setShowPw(!showPw)} style={s.eyeBtn}>
                 <Ionicons name={showPw ? 'eye-off-outline' : 'eye-outline'} size={18} color={Colors.textMuted} />
@@ -91,7 +122,7 @@ export default function DesktopLogin() {
             </View>
           </View>
 
-          <TouchableOpacity style={s.loginBtn} onPress={handleLogin} disabled={loading} activeOpacity={0.85}>
+          <TouchableOpacity style={[s.loginBtn, loading && { opacity: 0.7 }]} onPress={handleLogin} disabled={loading} activeOpacity={0.85}>
             {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={s.loginBtnText}>Accedi al Portale</Text>}
           </TouchableOpacity>
 
@@ -129,7 +160,13 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 24, elevation: 8,
   },
   cardTitle: { fontSize: 28, fontWeight: '800', color: Colors.navy, marginBottom: 8 },
-  cardSub: { fontSize: 14, color: Colors.textSec, marginBottom: 32 },
+  cardSub: { fontSize: 14, color: Colors.textSec, marginBottom: 24 },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEE2E2',
+    borderRadius: 10, padding: 12, marginBottom: 16, gap: 8,
+    borderLeftWidth: 3, borderLeftColor: '#DC2626',
+  },
+  errorText: { fontSize: 13, color: '#DC2626', fontWeight: '500', flex: 1 },
   field: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', color: Colors.textMain, marginBottom: 8 },
   inputWrap: {

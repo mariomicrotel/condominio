@@ -1465,11 +1465,15 @@ async def collaboratore_login(data: UserLogin):
     if collab.get("stato") != "Attivo":
         raise HTTPException(403, "Account sospeso")
     token = create_token(collab["id"], "collaboratore")
-    return {"token": token, "user": {k: v for k, v in collab.items() if k not in ("_id", "password_hash")}}
+    user_data = {k: v for k, v in collab.items() if k not in ("_id", "password_hash")}
+    user_data["ruolo"] = "collaboratore"
+    return {"token": token, "user": user_data}
 
 @api_router.get("/collaboratore/profilo")
 async def collaboratore_profilo(user=Depends(get_collaboratore_user)):
-    return user
+    user_data = {k: v for k, v in user.items() if k != "_id"}
+    user_data["ruolo"] = "collaboratore"
+    return user_data
 
 # ---- Sopralluoghi CRUD ----
 

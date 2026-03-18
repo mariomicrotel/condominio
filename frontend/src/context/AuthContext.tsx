@@ -18,6 +18,7 @@ type GdprUpdateInfo = {
 type AuthContextType = {
   user: User | null; token: string | null; loading: boolean;
   login: (email: string, password: string) => Promise<User>;
+  loginCollaboratore: (email: string, password: string) => Promise<User>;
   register: (data: any) => Promise<User>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -59,17 +60,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem('token');
+        const storedRole = await AsyncStorage.getItem('userRole');
         if (stored) {
-          const profile = await api.getProfile(stored);
-          setToken(stored);
-          setUser(profile);
-          // Only check GDPR for condomino/fornitore roles (not admin/collaboratore)
-          if (profile.ruolo === 'condomino') {
-            await checkGdprUpdate(stored);
+          if (storedRole === 'collaboratore') {
+            // Collaboratore uses different profile endpoint
+            const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+            const res = await fetch(`${BACKEND_URL}/api/collaboratore/profilo`, {
+              headers: { 'Authorization': `Bearer ${stored}` },
+            });
+            if (res.ok) {
+              const profile = await res.json();
+              setToken(stored);
+              setUser(profile);
+            } else {
+              await AsyncStorage.removeItem('token');
+              await AsyncStorage.removeItem('userRole');
+            }
+          } else {
+            const profile = await api.getProfile(stored);
+            setToken(stored);
+            setUser(profile);
+            // Only check GDPR for condomino/fornitore roles (not admin/collaboratore)
+            if (profile.ruolo === 'condomino') {
+              await checkGdprUpdate(stored);
+            }
           }
         }
       } catch {
         await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('userRole');
       } finally {
         setLoading(false);
       }
@@ -81,12 +100,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(data.token);
     setUser(data.user);
     await AsyncStorage.setItem('token', data.token);
+    await AsyncStorage.setItem('userRole', data.user.ruolo || '');
     // Check GDPR update after login (only for condomino)
     if (data.user.ruolo === 'condomino') {
       await checkGdprUpdate(data.token);
     }
     return data.user;
   }, [checkGdprUpdate]);
+
+  const loginCollaboratore = useCallback(async (email: string, password: string) => {
+    const data = await api.collaboratoreLogin(email, password);
+    setToken(data.token);
+    setUser(data.user);
+    await AsyncStorage.setItem('token', data.token);
+    await AsyncStorage.setItem('userRole', 'collaboratore');
+    return data.user;
+  }, []);
 
   const register = useCallback(async (userData: any) => {
     const data = await api.register(userData);
@@ -102,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setGdprUpdateRequired(false);
     setGdprUpdateInfo(null);
     await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('userRole');
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -119,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshProfile, gdprUpdateRequired, gdprUpdateInfo, confirmGdprUpdate }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginCollaboratore, register, logout, refreshProfile, gdprUpdateRequired, gdprUpdateInfo, confirmGdprUpdate }}>
       {children}
     </AuthContext.Provider>
   );

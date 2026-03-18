@@ -348,7 +348,7 @@ export default function AdminDesktop() {
   const createAvviso = async () => {
     if (!formData.titolo?.trim() || !formData.testo?.trim()) { Alert.alert('Attenzione', 'Titolo e testo obbligatori'); return; }
     try {
-      const a = await api.createAvviso(token!, formData);
+      const a = await api.createAdminAvviso(token!, formData);
       setAvvisi(p => [a, ...p]);
       setShowModal(null); setFormData({});
     } catch (e: any) { Alert.alert('Errore', e.message); }
@@ -358,7 +358,7 @@ export default function AdminDesktop() {
     Alert.alert('Elimina', 'Eliminare questo avviso?', [
       { text: 'Annulla', style: 'cancel' },
       { text: 'Elimina', style: 'destructive', onPress: async () => {
-        try { await api.deleteAvviso(token!, id); setAvvisi(p => p.filter(x => x.id !== id)); }
+        try { await api.deleteAdminAvviso(token!, id); setAvvisi(p => p.filter(x => x.id !== id)); }
         catch (e: any) { Alert.alert('Errore', e.message); }
       }}
     ]);
@@ -375,14 +375,14 @@ export default function AdminDesktop() {
 
   const approvaAppuntamento = async (id: string) => {
     try {
-      await api.approvaAppuntamento(token!, id);
+      await api.updateAdminApp(token!, id, { stato: 'confermato' });
       setAppuntamenti(p => p.map(x => x.id === id ? { ...x, stato: 'confermato' } : x));
     } catch (e: any) { Alert.alert('Errore', e.message); }
   };
 
   const rifiutaAppuntamento = async (id: string) => {
     try {
-      await api.rifiutaAppuntamento(token!, id);
+      await api.updateAdminApp(token!, id, { stato: 'rifiutato' });
       setAppuntamenti(p => p.map(x => x.id === id ? { ...x, stato: 'rifiutato' } : x));
     } catch (e: any) { Alert.alert('Errore', e.message); }
   };
@@ -958,7 +958,7 @@ export default function AdminDesktop() {
           <Btn label="Crea Segnalazione" onPress={async () => {
             if (!formData.condominio_id || !formData.tipologia || !formData.descrizione) { Alert.alert('Attenzione', 'Compila tutti i campi obbligatori'); return; }
             try {
-              const seg = await api.adminCreateSegnalazione(token!, formData);
+              const seg = await api.createAdminSegnalazione(token!, formData);
               setSegnalazioni(p => [seg, ...p]);
               setShowModal(null); setFormData({});
             } catch (e: any) { Alert.alert('Errore', e.message); }

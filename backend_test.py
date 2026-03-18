@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 # Configuration
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://data-protection-17.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://property-manager-208.preview.emergentagent.com')
 API_BASE = f"{BASE_URL}/api"
 
 # Test data
