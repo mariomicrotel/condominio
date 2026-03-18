@@ -274,6 +274,7 @@ export default function Admin() {
   });
   const [editCond, setEditCond] = useState<any>(null);
   const [importingCsv, setImportingCsv] = useState(false);
+  const [condSearch, setCondSearch] = useState('');
   const [assocForm, setAssocForm] = useState({ condominio_id: '', unita_immobiliare: '', qualita: 'Proprietario' });
   const [config, setConfig] = useState({ google_maps_api_key: '', firebase_key: '', studio_telefono: '', studio_email: '', studio_pec: '' });
   const [configLoading, setConfigLoading] = useState(false);
@@ -1270,8 +1271,70 @@ export default function Admin() {
               </TouchableOpacity>
             </View>
 
-            <FlatList data={condomini} keyExtractor={i => i.id} contentContainerStyle={s.content}
-              ListEmptyComponent={<Text style={s.emptyText}>Nessun condominio. Usa "Importa XLS/CSV" per caricare i dati dal gestionale.</Text>}
+            {/* Search bar */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 12, height: 44 }}>
+              <Ionicons name="search-outline" size={18} color={Colors.textMuted} style={{ marginRight: 8 }} />
+              <TextInput
+                style={{ flex: 1, fontSize: 15, color: Colors.textMain }}
+                placeholder="Cerca per nome, indirizzo, città, CF…"
+                placeholderTextColor={Colors.textMuted}
+                value={condSearch}
+                onChangeText={setCondSearch}
+                clearButtonMode="while-editing"
+                returnKeyType="search"
+              />
+              {condSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setCondSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Count badge */}
+            {condSearch.length > 0 && (() => {
+              const q = condSearch.toLowerCase();
+              const filtered = condomini.filter(c =>
+                c.nome?.toLowerCase().includes(q) ||
+                c.indirizzo?.toLowerCase().includes(q) ||
+                c.citta?.toLowerCase().includes(q) ||
+                c.cap?.includes(q) ||
+                c.codice_fiscale?.toLowerCase().includes(q) ||
+                c.iban?.toLowerCase().includes(q) ||
+                c.dati_catastali?.toLowerCase().includes(q)
+              );
+              return (
+                <Text style={{ fontSize: 12, color: Colors.textSec, marginHorizontal: 20, marginBottom: 4 }}>
+                  {filtered.length} {filtered.length === 1 ? 'risultato' : 'risultati'} per "{condSearch}"
+                </Text>
+              );
+            })()}
+
+            <FlatList
+              data={(() => {
+                if (!condSearch.trim()) return condomini;
+                const q = condSearch.toLowerCase();
+                return condomini.filter(c =>
+                  c.nome?.toLowerCase().includes(q) ||
+                  c.indirizzo?.toLowerCase().includes(q) ||
+                  c.citta?.toLowerCase().includes(q) ||
+                  c.cap?.includes(q) ||
+                  c.codice_fiscale?.toLowerCase().includes(q) ||
+                  c.iban?.toLowerCase().includes(q) ||
+                  c.dati_catastali?.toLowerCase().includes(q)
+                );
+              })()}
+              keyExtractor={i => i.id} contentContainerStyle={s.content}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                  {condSearch.length > 0
+                    ? <>
+                        <Ionicons name="search-outline" size={40} color={Colors.textMuted} />
+                        <Text style={[s.emptyText, { marginTop: 10 }]}>Nessun condominio trovato per "{condSearch}"</Text>
+                      </>
+                    : <Text style={s.emptyText}>Nessun condominio. Usa "Importa XLS/CSV" per caricare i dati dal gestionale.</Text>
+                  }
+                </View>
+              }
               renderItem={({ item }) => (
                 <View testID={`admin-cond-${item.id}`} style={s.listCard}>
                   {/* Header row */}
