@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import { Colors } from '../src/constants/theme';
@@ -8,6 +8,7 @@ import { api } from '../src/services/api';
 export default function Index() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const isWeb = Platform.OS === 'web';
 
   useEffect(() => {
     api.seed().catch(() => {});
@@ -15,14 +16,30 @@ export default function Index() {
 
   useEffect(() => {
     if (!loading) {
-      if (user) {
-        if (user.ruolo === 'fornitore') {
-          router.replace('/fornitore-dashboard');
+      if (isWeb) {
+        // Desktop portal: redirect to desktop routes
+        if (user) {
+          if (user.ruolo === 'admin') {
+            router.replace('/desktop/admin');
+          } else if (user.ruolo === 'collaboratore') {
+            router.replace('/desktop/collaboratore');
+          } else {
+            router.replace('/desktop/login');
+          }
         } else {
-          router.replace('/home');
+          router.replace('/desktop/login');
         }
       } else {
-        router.replace('/login');
+        // Mobile app: redirect to mobile routes
+        if (user) {
+          if (user.ruolo === 'fornitore') {
+            router.replace('/fornitore-dashboard');
+          } else {
+            router.replace('/home');
+          }
+        } else {
+          router.replace('/login');
+        }
       }
     }
   }, [user, loading]);
