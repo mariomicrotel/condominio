@@ -235,6 +235,319 @@ const sb = StyleSheet.create({
   input: { flex: 1, fontSize: 14, color: Colors.textMain, outlineStyle: 'none' } as any,
 });
 
+// ─── Segnalazione Detail Modal (Full Featured) ───────────────────────────────
+function SegnalazioneDetailModal({ seg, token, condomini, fornitori, onClose, onUpdate, onRefreshAll }: {
+  seg: any; token: string; condomini: any[]; fornitori: any[];
+  onClose: () => void; onUpdate: (s: any) => void; onRefreshAll: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'dettagli' | 'modifica' | 'fornitore' | 'timeline' | 'rapportino'>('dettagli');
+  const [editData, setEditData] = useState({ tipologia: seg.tipologia || '', descrizione: seg.descrizione || '', urgenza: seg.urgenza || 'Media', note_admin: seg.note_admin || '' });
+  const [assegnData, setAssegnData] = useState({ fornitore_id: seg.fornitore_id || '', note: '', data_prevista: '' });
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [rapportino, setRapportino] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [loadingExtra, setLoadingExtra] = useState(false);
+
+  const condNome = condomini.find(c => c.id === seg.condominio_id)?.nome || '—';
+  const fornNome = fornitori.find(f => f.id === seg.fornitore_id)?.ragione_sociale || null;
+
+  const loadTimeline = async () => {
+    setLoadingExtra(true);
+    try { const t = await api.getAdminTimeline(token, seg.id); setTimeline(Array.isArray(t) ? t : []); } catch { setTimeline([]); }
+    setLoadingExtra(false);
+  };
+  const loadRapportino = async () => {
+    setLoadingExtra(true);
+    try { const r = await api.getAdminRapportino(token, seg.id); setRapportino(r); } catch { setRapportino(null); }
+    setLoadingExtra(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'timeline') loadTimeline();
+    if (activeTab === 'rapportino') loadRapportino();
+  }, [activeTab]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await api.updateAdminSeg(token, seg.id, editData);
+      onUpdate({ ...seg, ...editData, ...updated });
+      Alert.alert('Salvato', 'Segnalazione aggiornata');
+      setActiveTab('dettagli');
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+    setSaving(false);
+  };
+
+  const handleAssegna = async () => {
+    if (!assegnData.fornitore_id) { Alert.alert('Attenzione', 'Seleziona un fornitore'); return; }
+    setSaving(true);
+    try {
+      await api.assegnaFornitore(token, seg.id, assegnData);
+      onUpdate({ ...seg, stato: 'Assegnata al fornitore', fornitore_id: assegnData.fornitore_id });
+      Alert.alert('Assegnata', 'Segnalazione assegnata al fornitore');
+      onRefreshAll();
+      onClose();
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+    setSaving(false);
+  };
+
+  const handleChiudi = async () => {
+    setSaving(true);
+    try {
+      await api.chiudiSegnalazione(token, seg.id);
+      onUpdate({ ...seg, stato: 'Chiusa' });
+      onClose();
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+    setSaving(false);
+  };
+
+  const handleRiapri = async () => {
+    setSaving(true);
+    try {
+      await api.riapriSegnalazione(token, seg.id);
+      onUpdate({ ...seg, stato: 'Richiesto nuovo intervento' });
+      onClose();
+    } catch (e: any) { Alert.alert('Errore', e.message); }
+    setSaving(false);
+  };
+
+  const tabs = [
+    { key: 'dettagli', label: 'Dettagli', icon: 'document-text-outline' },
+    { key: 'modifica', label: 'Modifica', icon: 'create-outline' },
+    { key: 'fornitore', label: 'Assegna Fornitore', icon: 'construct-outline' },
+    { key: 'timeline', label: 'Timeline', icon: 'time-outline' },
+    { key: 'rapportino', label: 'Rapportino', icon: 'clipboard-outline' },
+  ];
+
+  const fmtD = (d: string) => d ? new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  const urgColor = (u: string) => u === 'Urgente' ? '#DC2626' : u === 'Alta' ? '#F59E0B' : u === 'Media' ? '#3B82F6' : '#6B7280';
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ width: 720, maxHeight: '90%', backgroundColor: Colors.white, borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.15, shadowRadius: 40, elevation: 24 }}>
+          {/* Header */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.navy, paddingHorizontal: 24, paddingVertical: 16 }}>
+            <View>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: Colors.white }}>{seg.protocollo}</Text>
+              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{condNome} · {fmtD(seg.created_at)}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <StatoBadge stato={seg.stato} />
+              <TouchableOpacity onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="close" size={18} color={Colors.white} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Tab bar */}
+          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.bg }}>
+            {tabs.map(t => (
+              <TouchableOpacity
+                key={t.key}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: activeTab === t.key ? Colors.navy : 'transparent' }}
+                onPress={() => setActiveTab(t.key as any)}
+              >
+                <Ionicons name={t.icon as any} size={15} color={activeTab === t.key ? Colors.navy : Colors.textMuted} style={{ marginRight: 5 }} />
+                <Text style={{ fontSize: 13, fontWeight: activeTab === t.key ? '700' : '500', color: activeTab === t.key ? Colors.navy : Colors.textMuted }}>{t.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Content */}
+          <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ padding: 24 }} keyboardShouldPersistTaps="handled">
+
+            {/* TAB: Dettagli */}
+            {activeTab === 'dettagli' && (
+              <View>
+                {[
+                  { l: 'Protocollo', v: seg.protocollo },
+                  { l: 'Condominio', v: condNome },
+                  { l: 'Tipologia', v: seg.tipologia },
+                  { l: 'Descrizione', v: seg.descrizione },
+                  { l: 'Urgenza', v: seg.urgenza, color: urgColor(seg.urgenza || '') },
+                  { l: 'Stato', v: seg.stato },
+                  { l: 'Fornitore', v: fornNome || 'Non assegnato' },
+                  { l: 'Data Creazione', v: fmtD(seg.created_at) },
+                  { l: 'Note Admin', v: seg.note_admin || '—' },
+                ].map(({ l, v, color }) => (
+                  <View key={l} style={{ flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                    <Text style={{ fontSize: 13, color: Colors.textSec, width: 130, fontWeight: '600' }}>{l}</Text>
+                    <Text style={{ fontSize: 14, color: color || Colors.textMain, fontWeight: '500', flex: 1 }}>{v}</Text>
+                  </View>
+                ))}
+
+                {/* Allegati */}
+                {seg.allegati?.length > 0 && (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.textSec, marginBottom: 8 }}>Allegati ({seg.allegati.length})</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {seg.allegati.map((a: string, i: number) => (
+                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
+                          <Ionicons name="attach" size={14} color={Colors.textSec} />
+                          <Text style={{ fontSize: 12, color: Colors.textSec, marginLeft: 4 }}>File {i + 1}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Azioni rapide */}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
+                  {seg.stato !== 'Chiusa' && !fornNome && (
+                    <Btn label="Assegna Fornitore" icon="construct-outline" color="#F59E0B" onPress={() => setActiveTab('fornitore')} />
+                  )}
+                  {seg.stato !== 'Chiusa' && (
+                    <Btn label="Modifica" icon="create-outline" color={Colors.sky} onPress={() => setActiveTab('modifica')} />
+                  )}
+                  {seg.stato !== 'Chiusa' && (
+                    <Btn label="Chiudi" icon="checkmark-circle-outline" color="#15803D" onPress={handleChiudi} />
+                  )}
+                  {seg.stato === 'Chiusa' && (
+                    <Btn label="Riapri / Nuovo Intervento" icon="refresh-outline" color={Colors.sky} onPress={handleRiapri} />
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* TAB: Modifica */}
+            {activeTab === 'modifica' && (
+              <View>
+                <FInput label="Tipologia *" value={editData.tipologia} onChange={v => setEditData(p => ({ ...p, tipologia: v }))} placeholder="Es. Guasto idraulico" />
+                <FInput label="Descrizione *" value={editData.descrizione} onChange={v => setEditData(p => ({ ...p, descrizione: v }))} multiline />
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={fi.label}>Urgenza</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {['Bassa', 'Media', 'Alta', 'Urgente'].map(u => (
+                      <TouchableOpacity key={u} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: editData.urgenza === u ? urgColor(u) : Colors.bg, borderWidth: 1, borderColor: editData.urgenza === u ? urgColor(u) : Colors.border }} onPress={() => setEditData(p => ({ ...p, urgenza: u }))}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: editData.urgenza === u ? Colors.white : Colors.textSec }}>{u}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+                <FInput label="Note Admin" value={editData.note_admin} onChange={v => setEditData(p => ({ ...p, note_admin: v }))} multiline placeholder="Note interne visibili solo all'admin" />
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                  <Btn label={saving ? 'Salvataggio...' : 'Salva Modifiche'} icon="save-outline" onPress={handleSave} />
+                  <Btn label="Annulla" outline color={Colors.textSec} onPress={() => setActiveTab('dettagli')} />
+                </View>
+              </View>
+            )}
+
+            {/* TAB: Assegna Fornitore */}
+            {activeTab === 'fornitore' && (
+              <View>
+                {fornNome && (
+                  <View style={{ backgroundColor: '#FEF3C7', borderRadius: 10, padding: 14, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: '#F59E0B' }}>
+                    <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '600' }}>Fornitore attuale: {fornNome}</Text>
+                    <Text style={{ fontSize: 12, color: '#92400E', marginTop: 4 }}>Puoi riassegnare selezionando un nuovo fornitore qui sotto.</Text>
+                  </View>
+                )}
+                <Text style={fi.label}>Seleziona Fornitore *</Text>
+                <View style={{ marginBottom: 16 }}>
+                  {fornitori.length === 0 ? (
+                    <Text style={{ fontSize: 14, color: Colors.textMuted, fontStyle: 'italic' }}>Nessun fornitore registrato. Creane uno dalla sezione Fornitori.</Text>
+                  ) : (
+                    fornitori.map(f => (
+                      <TouchableOpacity key={f.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, marginBottom: 6, borderRadius: 10, backgroundColor: assegnData.fornitore_id === f.id ? '#EFF6FF' : Colors.bg, borderWidth: 1.5, borderColor: assegnData.fornitore_id === f.id ? Colors.sky : Colors.border }} onPress={() => setAssegnData(p => ({ ...p, fornitore_id: f.id }))}>
+                        <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: Colors.navy, backgroundColor: assegnData.fornitore_id === f.id ? Colors.navy : 'transparent', marginRight: 10, justifyContent: 'center', alignItems: 'center' }}>
+                          {assegnData.fornitore_id === f.id && <Ionicons name="checkmark" size={12} color={Colors.white} />}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textMain }}>{f.ragione_sociale}</Text>
+                          <Text style={{ fontSize: 12, color: Colors.textSec }}>{(f.settori_competenza || []).join(', ') || f.email || '—'}</Text>
+                        </View>
+                        {f.telefono && <Text style={{ fontSize: 12, color: Colors.textMuted }}>{f.telefono}</Text>}
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </View>
+                <FInput label="Note per il fornitore" value={assegnData.note} onChange={v => setAssegnData(p => ({ ...p, note: v }))} multiline placeholder="Es. Urgente, chiamare il mattino" />
+                <FInput label="Data prevista intervento" value={assegnData.data_prevista} onChange={v => setAssegnData(p => ({ ...p, data_prevista: v }))} placeholder="Es. 2026-03-25" />
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                  <Btn label={saving ? 'Assegnazione...' : 'Assegna Fornitore'} icon="send-outline" color="#F59E0B" onPress={handleAssegna} />
+                  <Btn label="Annulla" outline color={Colors.textSec} onPress={() => setActiveTab('dettagli')} />
+                </View>
+              </View>
+            )}
+
+            {/* TAB: Timeline */}
+            {activeTab === 'timeline' && (
+              <View>
+                {loadingExtra ? (
+                  <ActivityIndicator size="small" color={Colors.navy} style={{ marginVertical: 24 }} />
+                ) : timeline.length === 0 ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <Ionicons name="time-outline" size={40} color={Colors.textMuted} />
+                    <Text style={{ fontSize: 14, color: Colors.textMuted, marginTop: 8 }}>Nessun evento registrato</Text>
+                  </View>
+                ) : (
+                  timeline.map((ev: any, i: number) => (
+                    <View key={i} style={{ flexDirection: 'row', marginBottom: 16 }}>
+                      <View style={{ alignItems: 'center', width: 32 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: i === 0 ? Colors.navy : Colors.border, marginTop: 4 }} />
+                        {i < timeline.length - 1 && <View style={{ width: 2, flex: 1, backgroundColor: Colors.border, marginTop: 4 }} />}
+                      </View>
+                      <View style={{ flex: 1, backgroundColor: Colors.bg, borderRadius: 10, padding: 12 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.textMain }}>{ev.azione || ev.evento || ev.tipo || '—'}</Text>
+                        {ev.dettaglio && <Text style={{ fontSize: 12, color: Colors.textSec, marginTop: 4 }}>{ev.dettaglio}</Text>}
+                        {ev.note && <Text style={{ fontSize: 12, color: Colors.textSec, marginTop: 2 }}>{ev.note}</Text>}
+                        <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 4 }}>{fmtD(ev.data || ev.created_at)}</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {/* TAB: Rapportino */}
+            {activeTab === 'rapportino' && (
+              <View>
+                {loadingExtra ? (
+                  <ActivityIndicator size="small" color={Colors.navy} style={{ marginVertical: 24 }} />
+                ) : !rapportino ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <Ionicons name="clipboard-outline" size={40} color={Colors.textMuted} />
+                    <Text style={{ fontSize: 14, color: Colors.textMuted, marginTop: 8 }}>Nessun rapportino disponibile</Text>
+                    <Text style={{ fontSize: 12, color: Colors.textMuted, marginTop: 4 }}>Il fornitore non ha ancora compilato il rapportino</Text>
+                  </View>
+                ) : (
+                  <View>
+                    {[
+                      { l: 'Data Intervento', v: fmtD(rapportino.data_intervento) },
+                      { l: 'Descrizione Lavori', v: rapportino.descrizione_lavori },
+                      { l: 'Esito', v: rapportino.esito },
+                      { l: 'Materiali', v: rapportino.materiali_utilizzati || '—' },
+                      { l: 'Compilato il', v: fmtD(rapportino.created_at) },
+                    ].map(({ l, v }) => (
+                      <View key={l} style={{ flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                        <Text style={{ fontSize: 13, color: Colors.textSec, width: 140, fontWeight: '600' }}>{l}</Text>
+                        <Text style={{ fontSize: 14, color: Colors.textMain, flex: 1 }}>{v}</Text>
+                      </View>
+                    ))}
+                    {rapportino.foto_ids?.length > 0 && (
+                      <View style={{ marginTop: 12 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.textSec, marginBottom: 6 }}>Foto ({rapportino.foto_ids.length})</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                          {rapportino.foto_ids.map((f: string, i: number) => (
+                            <View key={i} style={{ backgroundColor: Colors.bg, borderRadius: 8, padding: 8 }}>
+                              <Ionicons name="image-outline" size={20} color={Colors.textSec} />
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -719,15 +1032,19 @@ export default function AdminDesktop() {
                   <DataTable
                     columns={[
                       { key: 'protocollo', label: 'Protocollo', flex: 1 },
-                      { key: 'condominio', label: 'Condominio', flex: 1.8, render: row => <Text style={dt.cell}>{condomini.find(c => c.id === row.condominio_id)?.nome || '—'}</Text> },
-                      { key: 'tipologia', label: 'Tipo', flex: 1.5 },
-                      { key: 'urgenza', label: 'Urgenza', flex: 0.8, render: row => {
+                      { key: 'condominio', label: 'Condominio', flex: 1.5, render: row => <Text style={dt.cell}>{condomini.find(c => c.id === row.condominio_id)?.nome || '—'}</Text> },
+                      { key: 'tipologia', label: 'Tipo', flex: 1.2 },
+                      { key: 'urgenza', label: 'Urgenza', flex: 0.7, render: row => {
                         const urg = row.urgenza || '';
                         const c = urg === 'Urgente' ? '#DC2626' : urg === 'Alta' ? '#F59E0B' : Colors.textSec;
                         return <Text style={{ fontSize: 13, color: c, fontWeight: '600' }}>{urg || '—'}</Text>;
                       }},
+                      { key: 'fornitore', label: 'Fornitore', flex: 1.2, render: row => {
+                        const fn = fornitori.find(f => f.id === row.fornitore_id);
+                        return <Text style={{ fontSize: 13, color: fn ? Colors.textMain : Colors.textMuted, fontStyle: fn ? 'normal' : 'italic' }}>{fn ? fn.ragione_sociale : '—'}</Text>;
+                      }},
                       { key: 'stato', label: 'Stato', flex: 1, render: row => <StatoBadge stato={row.stato} /> },
-                      { key: 'created_at', label: 'Data', flex: 1, render: row => <Text style={dt.cell}>{fmtDate(row.created_at)}</Text> },
+                      { key: 'created_at', label: 'Data', flex: 0.8, render: row => <Text style={dt.cell}>{fmtDate(row.created_at)}</Text> },
                     ]}
                     data={filteredSeg}
                     onRowPress={row => { setSelected(row); setShowModal('detailSeg'); }}
@@ -1037,45 +1354,19 @@ export default function AdminDesktop() {
         </DeskModal>
       )}
 
-      {/* Detail Segnalazione */}
+      {/* Detail Segnalazione — Full Featured */}
       {showModal === 'detailSeg' && selected && (
-        <DeskModal visible title={`Segnalazione ${selected.protocollo}`} onClose={() => { setShowModal(null); setSelected(null); }} width={560}>
-          {[
-            { l: 'Protocollo', v: selected.protocollo },
-            { l: 'Condominio', v: condomini.find(c => c.id === selected.condominio_id)?.nome || '—' },
-            { l: 'Tipologia', v: selected.tipologia },
-            { l: 'Urgenza', v: selected.urgenza },
-            { l: 'Stato', v: selected.stato },
-            { l: 'Descrizione', v: selected.descrizione },
-            { l: 'Data', v: fmtDate(selected.created_at) },
-            { l: 'Note Admin', v: selected.note_admin || '—' },
-          ].map(({ l, v }) => (
-            <View key={l} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-              <Text style={{ fontSize: 13, color: Colors.textSec, width: 120 }}>{l}</Text>
-              <Text style={{ fontSize: 13, color: Colors.textMain, fontWeight: '500', flex: 1 }}>{v}</Text>
-            </View>
-          ))}
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-            {selected.stato !== 'Chiusa' && (
-              <Btn label="Chiudi segnalazione" color="#15803D" onPress={async () => {
-                try {
-                  await api.chiudiSegnalazione(token!, selected.id);
-                  setSegnalazioni(p => p.map(x => x.id === selected.id ? { ...x, stato: 'Chiusa' } : x));
-                  setShowModal(null); setSelected(null);
-                } catch (e: any) { Alert.alert('Errore', e.message); }
-              }} />
-            )}
-            {selected.stato === 'Chiusa' && (
-              <Btn label="Riapri" color={Colors.sky} onPress={async () => {
-                try {
-                  await api.riapriSegnalazione(token!, selected.id);
-                  setSegnalazioni(p => p.map(x => x.id === selected.id ? { ...x, stato: 'In lavorazione' } : x));
-                  setShowModal(null); setSelected(null);
-                } catch (e: any) { Alert.alert('Errore', e.message); }
-              }} />
-            )}
-          </View>
-        </DeskModal>
+        <SegnalazioneDetailModal
+          seg={selected}
+          token={token!}
+          condomini={condomini}
+          fornitori={fornitori}
+          onClose={() => { setShowModal(null); setSelected(null); }}
+          onUpdate={(updated) => {
+            setSegnalazioni(p => p.map(x => x.id === updated.id ? { ...x, ...updated } : x));
+          }}
+          onRefreshAll={loadAll}
+        />
       )}
 
       {/* Detail Avviso */}
