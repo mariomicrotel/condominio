@@ -196,4 +196,9 @@ export const api = {
     if (!res.ok) { const e = await res.json().catch(() => ({ detail: 'Errore' })); throw new Error(e.detail || 'Errore'); }
     return res.json();
   },
+
+  // ===== MAILJET CONFIG =====
+  getMailjetConfig: (token: string) => apiCall('/admin/mailjet', { token }),
+  updateMailjetConfig: (token: string, data: any) => apiCall('/admin/mailjet', { method: 'PUT', token, body: data }),
+  testMailjet: (token: string) => apiCall('/admin/mailjet/test', { method: 'POST', token }),
 };

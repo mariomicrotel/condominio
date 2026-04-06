@@ -1,5 +1,5 @@
 """Privacy & GDPR routes: informativa, consensi, privacy rights, admin privacy."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 import uuid
 import io
@@ -498,7 +498,7 @@ async def export_miei_dati(user=Depends(get_current_user)):
 
 
 @router.post("/privacy/richiesta")
-async def crea_richiesta_privacy(data: RichiestaPrivacyCreate, user=Depends(get_current_user)):
+async def crea_richiesta_privacy(data: RichiestaPrivacyCreate, bg: BackgroundTasks, user=Depends(get_current_user)):
     """Create a privacy request (access, deletion, limitation, portability, opposition)."""
     tipi_validi = ["accesso", "cancellazione", "limitazione", "portabilita", "opposizione"]
     if data.tipo not in tipi_validi:
@@ -529,6 +529,9 @@ async def crea_richiesta_privacy(data: RichiestaPrivacyCreate, user=Depends(get_
             "testo": f"{richiesta['user_nome']} ha inviato una richiesta di {data.tipo}. Protocollo: {protocollo}. Scadenza: {scadenza.strftime('%d/%m/%Y')}",
             "tipo": "privacy", "letto": False, "created_at": now_iso(),
         })
+    # Email: notifica admin nuova richiesta privacy
+    from email_service import notify_admin_nuova_richiesta_privacy
+    bg.add_task(notify_admin_nuova_richiesta_privacy, richiesta)
     return {k: v for k, v in richiesta.items() if k != "_id"}
 
 
@@ -573,7 +576,7 @@ async def admin_list_richieste_privacy(
 
 
 @router.put("/admin/privacy/richieste/{id}/evadi")
-async def evadi_richiesta_privacy(id: str, data: EvadiRichiestaPrivacy, user=Depends(get_admin_user)):
+async def evadi_richiesta_privacy(id: str, data: EvadiRichiestaPrivacy, bg: BackgroundTasks, user=Depends(get_admin_user)):
     """Admin: process (approve/reject) a privacy request."""
     richiesta = await db.richieste_privacy.find_one({"id": id})
     if not richiesta:
@@ -618,6 +621,10 @@ async def evadi_richiesta_privacy(id: str, data: EvadiRichiestaPrivacy, user=Dep
         })
     except Exception:
         pass
+    # Email: notifica condomino privacy evasa/rifiutata
+    from email_service import notify_privacy_evasa
+    richiesta_updated = {**richiesta, **update_doc}
+    bg.add_task(notify_privacy_evasa, richiesta_updated, data.azione)
     return {"message": f"Richiesta {data.azione} con successo", "protocollo": richiesta.get("protocollo")}
 
 

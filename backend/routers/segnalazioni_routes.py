@@ -1,5 +1,5 @@
 """Segnalazioni routes: user and admin."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 import uuid
 from datetime import datetime
 
@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.post("/segnalazioni")
-async def create_segnalazione(data: SegnalazioneCreate, user=Depends(get_current_user)):
+async def create_segnalazione(data: SegnalazioneCreate, bg: BackgroundTasks, user=Depends(get_current_user)):
     cond = await db.condomini.find_one({"id": data.condominio_id}, {"_id": 0})
     seg_id = str(uuid.uuid4())
     counter = await db.segnalazioni.count_documents({}) + 1
@@ -26,6 +26,10 @@ async def create_segnalazione(data: SegnalazioneCreate, user=Depends(get_current
         "allegati": data.allegati[:10], "created_at": now_iso(), "updated_at": now_iso()
     }
     await db.segnalazioni.insert_one(seg)
+    # Email: conferma al condomino + notifica admin
+    from email_service import notify_segnalazione_creata, notify_admin_nuova_segnalazione
+    bg.add_task(notify_segnalazione_creata, seg, user)
+    bg.add_task(notify_admin_nuova_segnalazione, seg, user)
     return {k: v for k, v in seg.items() if k != "_id"}
 
 
@@ -37,7 +41,8 @@ async def list_segnalazioni(user=Depends(get_current_user)):
 @router.get("/segnalazioni/{seg_id}")
 async def get_segnalazione(seg_id: str, user=Depends(get_current_user)):
     seg = await db.segnalazioni.find_one({"id": seg_id, "user_id": user["id"]}, {"_id": 0})
-    if not seg: raise HTTPException(404, "Segnalazione non trovata")
+    if not seg:
+        raise HTTPException(404, "Segnalazione non trovata")
     if seg.get("allegati"):
         files = await db.uploaded_files.find({"id": {"$in": seg["allegati"]}}, {"_id": 0}).to_list(50)
         seg["allegati_dettagli"] = files
@@ -54,25 +59,35 @@ async def admin_segnalazioni(user=Depends(get_admin_user)):
 
 
 @router.put("/admin/segnalazioni/{seg_id}")
-async def admin_update_seg(seg_id: str, data: AdminSegnalazioneUpdate, user=Depends(get_admin_user)):
+async def admin_update_seg(seg_id: str, data: AdminSegnalazioneUpdate, bg: BackgroundTasks, user=Depends(get_admin_user)):
     upd = {"updated_at": now_iso()}
-    if data.stato: upd["stato"] = data.stato
-    if data.note_admin is not None: upd["note_admin"] = data.note_admin
-    if data.tipologia is not None: upd["tipologia"] = data.tipologia
-    if data.descrizione is not None: upd["descrizione"] = data.descrizione
-    if data.urgenza is not None: upd["urgenza"] = data.urgenza
-    if data.allegati is not None: upd["allegati"] = data.allegati
+    if data.stato:
+        upd["stato"] = data.stato
+    if data.note_admin is not None:
+        upd["note_admin"] = data.note_admin
+    if data.tipologia is not None:
+        upd["tipologia"] = data.tipologia
+    if data.descrizione is not None:
+        upd["descrizione"] = data.descrizione
+    if data.urgenza is not None:
+        upd["urgenza"] = data.urgenza
+    if data.allegati is not None:
+        upd["allegati"] = data.allegati
     await db.segnalazioni.update_one({"id": seg_id}, {"$set": upd})
     seg = await db.segnalazioni.find_one({"id": seg_id}, {"_id": 0})
     if seg and data.stato:
         await create_notifica(seg["user_id"], "Segnalazione aggiornata", f"La tua segnalazione '{seg.get('tipologia', '')}' è ora: {data.stato}", "warning")
+        # Email: notifica cambio stato al condomino
+        from email_service import notify_segnalazione_aggiornata
+        bg.add_task(notify_segnalazione_aggiornata, seg, data.stato, data.note_admin or "")
     return clean_doc(seg)
 
 
 @router.post("/admin/segnalazioni")
 async def admin_create_seg(data: AdminSegnalazioneCreate, user=Depends(get_admin_user)):
     cond = await db.condomini.find_one({"id": data.condominio_id}, {"_id": 0})
-    if not cond: raise HTTPException(404, "Condominio non trovato")
+    if not cond:
+        raise HTTPException(404, "Condominio non trovato")
     seg_id = str(uuid.uuid4())
     counter = await db.segnalazioni.count_documents({}) + 1
     protocollo = f"SEG-{datetime.now().year}-{counter:03d}"

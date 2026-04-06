@@ -1,5 +1,5 @@
 """Auth routes: login, register, profile."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 import uuid
 
 from database import db, now_iso
@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.post("/auth/register")
-async def register(data: UserCreate):
+async def register(data: UserCreate, bg: BackgroundTasks):
     existing = await db.users.find_one({"email": data.email})
     if existing:
         raise HTTPException(400, "Email già registrata")
@@ -32,6 +32,9 @@ async def register(data: UserCreate):
             })
             await db.codici_invito.update_one({"id": codice["id"]}, {"$set": {"usato": True, "user_id": uid}})
     token = create_token(uid, "condomino")
+    # Email: benvenuto
+    from email_service import notify_benvenuto
+    bg.add_task(notify_benvenuto, user)
     return {"token": token, "user": {k: v for k, v in user.items() if k not in ("_id", "password_hash")}}
 
 

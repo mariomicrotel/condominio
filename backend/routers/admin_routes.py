@@ -1,5 +1,5 @@
 """Admin routes: dashboard, utenti, associazioni, codici invito, config, export, appuntamenti, avvisi, trasmissioni, estratti conto, richieste doc."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 import uuid, io, csv
 from datetime import datetime
@@ -81,7 +81,7 @@ async def admin_codici(user=Depends(get_admin_user)):
 # ── Appuntamenti ──────────────────────────────────────────────────────────────
 
 @router.post("/appuntamenti")
-async def create_appuntamento(data: AppuntamentoCreate, user=Depends(get_current_user)):
+async def create_appuntamento(data: AppuntamentoCreate, bg: BackgroundTasks, user=Depends(get_current_user)):
     appt = {
         "id": str(uuid.uuid4()), "user_id": user["id"],
         "user_nome": f"{user['nome']} {user['cognome']}", "user_email": user["email"],
@@ -91,6 +91,9 @@ async def create_appuntamento(data: AppuntamentoCreate, user=Depends(get_current
         "note": data.note, "note_admin": "", "created_at": now_iso()
     }
     await db.appuntamenti.insert_one(appt)
+    # Email: notifica admin
+    from email_service import notify_admin_nuovo_appuntamento
+    bg.add_task(notify_admin_nuovo_appuntamento, appt, user)
     return {k: v for k, v in appt.items() if k != "_id"}
 
 @router.get("/appuntamenti")
@@ -102,7 +105,7 @@ async def admin_appuntamenti(user=Depends(get_admin_user)):
     return await db.appuntamenti.find({}, {"_id": 0}).sort("data_richiesta", -1).to_list(1000)
 
 @router.put("/admin/appuntamenti/{app_id}")
-async def admin_update_app(app_id: str, data: AdminAppuntamentoUpdate, user=Depends(get_admin_user)):
+async def admin_update_app(app_id: str, data: AdminAppuntamentoUpdate, bg: BackgroundTasks, user=Depends(get_admin_user)):
     upd = {}
     if data.stato: upd["stato"] = data.stato
     if data.data_confermata: upd["data_confermata"] = data.data_confermata
@@ -111,6 +114,9 @@ async def admin_update_app(app_id: str, data: AdminAppuntamentoUpdate, user=Depe
     appt = await db.appuntamenti.find_one({"id": app_id}, {"_id": 0})
     if appt and data.stato:
         await create_notifica(appt["user_id"], "Appuntamento aggiornato", f"Il tuo appuntamento '{appt['motivo']}' è ora: {data.stato}", "calendar")
+        # Email: notifica condomino
+        from email_service import notify_appuntamento_aggiornato
+        bg.add_task(notify_appuntamento_aggiornato, appt, data.stato)
     return clean_doc(appt)
 
 # ── Avvisi ────────────────────────────────────────────────────────────────────
@@ -137,7 +143,7 @@ async def mark_letto(avviso_id: str, user=Depends(get_current_user)):
     return {"message": "Segnato come letto"}
 
 @router.post("/admin/avvisi")
-async def admin_create_avviso(data: AvvisoCreate, user=Depends(get_admin_user)):
+async def admin_create_avviso(data: AvvisoCreate, bg: BackgroundTasks, user=Depends(get_admin_user)):
     avviso = {"id": str(uuid.uuid4()), "condominio_id": data.condominio_id,
               "titolo": data.titolo, "testo": data.testo, "categoria": data.categoria, "created_at": now_iso()}
     await db.avvisi.insert_one(avviso)
@@ -146,10 +152,17 @@ async def admin_create_avviso(data: AvvisoCreate, user=Depends(get_admin_user)):
     else:
         assocs = await db.user_condomini.find({}, {"_id": 0}).to_list(1000)
     notified = set()
+    destinatari_emails = []
     for a in assocs:
         if a["user_id"] not in notified:
             await create_notifica(a["user_id"], f"Nuovo avviso: {data.titolo}", data.testo[:100], "announcement")
             notified.add(a["user_id"])
+            u = await db.users.find_one({"id": a["user_id"]}, {"email": 1, "nome": 1, "cognome": 1})
+            if u:
+                destinatari_emails.append({"email": u["email"], "nome": f"{u.get('nome', '')} {u.get('cognome', '')}"})
+    # Email: notifica condomini
+    from email_service import notify_nuovo_avviso
+    bg.add_task(notify_nuovo_avviso, avviso, destinatari_emails)
     return {k: v for k, v in avviso.items() if k != "_id"}
 
 @router.get("/admin/avvisi")
@@ -185,7 +198,7 @@ async def mark_all_lette(user=Depends(get_current_user)):
 # ── Trasmissioni ──────────────────────────────────────────────────────────────
 
 @router.post("/trasmissioni")
-async def create_trasmissione(data: TrasmissioneCreate, user=Depends(get_current_user)):
+async def create_trasmissione(data: TrasmissioneCreate, bg: BackgroundTasks, user=Depends(get_current_user)):
     trasm = {
         "id": str(uuid.uuid4()), "user_id": user["id"],
         "user_nome": f"{user['nome']} {user['cognome']}", "condominio_id": data.condominio_id,
@@ -194,6 +207,9 @@ async def create_trasmissione(data: TrasmissioneCreate, user=Depends(get_current
     }
     await db.trasmissioni.insert_one(trasm)
     await notify_admins("Nuova trasmissione documenti", f"{trasm['user_nome']} ha trasmesso: {data.oggetto}", "document", "/admin")
+    # Email: notifica admin
+    from email_service import notify_admin_nuova_trasmissione
+    bg.add_task(notify_admin_nuova_trasmissione, trasm, user)
     return {k: v for k, v in trasm.items() if k != "_id"}
 
 @router.get("/trasmissioni")
@@ -215,7 +231,7 @@ async def admin_update_trasm(trasm_id: str, stato: str = "Ricevuto", user=Depend
 # ── Richieste Documenti ───────────────────────────────────────────────────────
 
 @router.post("/richieste-documenti")
-async def create_richiesta(data: RichiestaDocCreate, user=Depends(get_current_user)):
+async def create_richiesta(data: RichiestaDocCreate, bg: BackgroundTasks, user=Depends(get_current_user)):
     rich = {
         "id": str(uuid.uuid4()), "user_id": user["id"],
         "user_nome": f"{user['nome']} {user['cognome']}",
@@ -225,6 +241,9 @@ async def create_richiesta(data: RichiestaDocCreate, user=Depends(get_current_us
     }
     await db.richieste_documenti.insert_one(rich)
     await notify_admins("Nuova richiesta documento", f"{rich['user_nome']} richiede: {data.tipo_documento}", "document")
+    # Email: notifica admin
+    from email_service import notify_admin_nuova_richiesta_doc
+    bg.add_task(notify_admin_nuova_richiesta_doc, rich, user)
     return {k: v for k, v in rich.items() if k != "_id"}
 
 @router.get("/richieste-documenti")
@@ -236,12 +255,17 @@ async def admin_richieste(user=Depends(get_admin_user)):
     return await db.richieste_documenti.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
 
 @router.put("/admin/richieste-documenti/{rich_id}")
-async def admin_update_richiesta(rich_id: str, data: AdminRichiestaUpdate, user=Depends(get_admin_user)):
+async def admin_update_richiesta(rich_id: str, data: AdminRichiestaUpdate, bg: BackgroundTasks, user=Depends(get_admin_user)):
     upd = {}
     if data.stato: upd["stato"] = data.stato
     if data.file_url: upd["file_url"] = data.file_url
     if upd: await db.richieste_documenti.update_one({"id": rich_id}, {"$set": upd})
-    return clean_doc(await db.richieste_documenti.find_one({"id": rich_id}, {"_id": 0}))
+    rich = await db.richieste_documenti.find_one({"id": rich_id}, {"_id": 0})
+    if rich and data.stato:
+        # Email: notifica condomino
+        from email_service import notify_richiesta_doc_evasa
+        bg.add_task(notify_richiesta_doc_evasa, rich, data.stato)
+    return clean_doc(rich)
 
 # ── Estratto Conto ────────────────────────────────────────────────────────────
 
@@ -308,6 +332,67 @@ async def get_public_config():
     if not config:
         return {"google_maps_api_key": "", "studio_telefono": "+39 089 123456", "studio_email": "info@tardugnobonifacio.it", "studio_pec": ""}
     return {"google_maps_api_key": config.get("google_maps_api_key", ""), "studio_telefono": config.get("studio_telefono", ""), "studio_email": config.get("studio_email", ""), "studio_pec": config.get("studio_pec", "")}
+
+
+# ── Mailjet Config ────────────────────────────────────────────────────────────
+
+@router.get("/admin/mailjet")
+async def get_mailjet_config_route(user=Depends(get_admin_user)):
+    cfg = await db.app_config.find_one({"key": "mailjet"}, {"_id": 0})
+    if not cfg:
+        return {"api_key": "", "api_secret": "", "sender_email": "", "sender_name": "Studio Tardugno & Bonifacio", "enabled": False}
+    val = cfg.get("value", {})
+    return {
+        "api_key": val.get("api_key", ""),
+        "api_secret": "••••••" if val.get("api_secret") else "",
+        "sender_email": val.get("sender_email", ""),
+        "sender_name": val.get("sender_name", "Studio Tardugno & Bonifacio"),
+        "enabled": val.get("enabled", False),
+    }
+
+
+@router.put("/admin/mailjet")
+async def update_mailjet_config(data: dict, user=Depends(get_admin_user)):
+    existing = await db.app_config.find_one({"key": "mailjet"})
+    current = existing.get("value", {}) if existing else {}
+
+    # Only update fields that are provided and not masked
+    if data.get("api_key"):
+        current["api_key"] = data["api_key"]
+    if data.get("api_secret") and data["api_secret"] != "••••••":
+        current["api_secret"] = data["api_secret"]
+    if "sender_email" in data:
+        current["sender_email"] = data["sender_email"]
+    if "sender_name" in data:
+        current["sender_name"] = data["sender_name"]
+    if "enabled" in data:
+        current["enabled"] = data["enabled"]
+
+    await db.app_config.update_one(
+        {"key": "mailjet"}, {"$set": {"key": "mailjet", "value": current}}, upsert=True
+    )
+    return {"message": "Configurazione Mailjet aggiornata"}
+
+
+@router.post("/admin/mailjet/test")
+async def test_mailjet(user=Depends(get_admin_user)):
+    """Send a test email to the admin's address to verify Mailjet configuration."""
+    from email_service import send_email, _base_html, _heading, _paragraph, _badge
+    cfg = await db.app_config.find_one({"key": "mailjet"})
+    if not cfg or not cfg.get("value", {}).get("api_key"):
+        raise HTTPException(400, "Configura prima le credenziali Mailjet")
+
+    body = _heading("Test Email Riuscito!")
+    body += _paragraph("Se stai leggendo questa email, la configurazione Mailjet è corretta e funzionante.")
+    body += f'<div style="text-align:center;margin:20px 0;">{_badge("Configurazione OK", "#16A34A")}</div>'
+    body += _paragraph("Le notifiche email dell'app condominiale verranno inviate correttamente.")
+    html = _base_html("Test Configurazione Email", body)
+
+    nome = f"{user.get('nome', '')} {user.get('cognome', '')}".strip()
+    success = await send_email(user["email"], nome, "Test Email — Studio Tardugno & Bonifacio", html)
+    if success:
+        return {"message": f"Email di test inviata a {user['email']}"}
+    raise HTTPException(500, "Invio fallito. Controlla le credenziali Mailjet e l'indirizzo mittente.")
 
 # ── Export CSV ────────────────────────────────────────────────────────────────
 

@@ -571,6 +571,8 @@ export default function AdminDesktop() {
   const [collaboratori, setCollaboratori] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [privacyScadenzaCount, setPrivacyScadenzaCount] = useState(0);
+  const [mailjetConfig, setMailjetConfig] = useState<any>({ api_key: '', api_secret: '', sender_email: '', sender_name: 'Studio Tardugno & Bonifacio', enabled: false });
+  const [mailjetTestLoading, setMailjetTestLoading] = useState(false);
 
   // Search states
   const [searchCond, setSearchCond] = useState('');
@@ -619,6 +621,11 @@ export default function AdminDesktop() {
 
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { if (tab === 'privacy') loadPrivacy(); }, [tab]);
+  useEffect(() => {
+    if (tab === 'config' && token) {
+      api.getMailjetConfig(token).then((r: any) => setMailjetConfig(r)).catch(() => {});
+    }
+  }, [tab]);
 
   const setForm = (key: string, val: any) => setFormData((p: any) => ({ ...p, [key]: val }));
 
@@ -1226,6 +1233,116 @@ export default function AdminDesktop() {
                       />
                     </View>
                   )}
+
+                  {/* ── MAILJET EMAIL CONFIG ── */}
+                  <View style={{ marginTop: 32, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 24 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Ionicons name="mail-outline" size={20} color={Colors.white} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.navy }}>Configurazione Email (Mailjet)</Text>
+                        <Text style={{ fontSize: 13, color: Colors.textSec }}>Notifiche email automatiche per condomini, fornitori e admin</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: mailjetConfig.enabled ? '#DCFCE7' : '#FEE2E2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}
+                        onPress={() => setMailjetConfig((p: any) => ({ ...p, enabled: !p.enabled }))}
+                      >
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: mailjetConfig.enabled ? '#16A34A' : '#DC2626', marginRight: 6 }} />
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: mailjetConfig.enabled ? '#15803D' : '#DC2626' }}>{mailjetConfig.enabled ? 'Attivo' : 'Disattivato'}</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={{ backgroundColor: '#F5F3FF', borderRadius: 10, padding: 14, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: '#7C3AED' }}>
+                      <Text style={{ fontSize: 13, color: '#5B21B6' }}>Ottieni le credenziali Mailjet su <Text style={{ fontWeight: '700' }}>app.mailjet.com</Text> → Impostazioni Account → API Key Management</Text>
+                    </View>
+
+                    <View style={s.configGrid}>
+                      <View style={s.configField}>
+                        <Text style={fi.label}>API Key *</Text>
+                        <TextInput
+                          style={[fi.input, { backgroundColor: Colors.white }]}
+                          value={mailjetConfig.api_key || ''}
+                          onChangeText={v => setMailjetConfig((p: any) => ({ ...p, api_key: v }))}
+                          placeholder="La tua API Key Mailjet"
+                          placeholderTextColor={Colors.textMuted}
+                          autoCapitalize="none"
+                        />
+                      </View>
+                      <View style={s.configField}>
+                        <Text style={fi.label}>Secret Key *</Text>
+                        <TextInput
+                          style={[fi.input, { backgroundColor: Colors.white }]}
+                          value={mailjetConfig.api_secret || ''}
+                          onChangeText={v => setMailjetConfig((p: any) => ({ ...p, api_secret: v }))}
+                          placeholder="La tua Secret Key Mailjet"
+                          placeholderTextColor={Colors.textMuted}
+                          secureTextEntry
+                          autoCapitalize="none"
+                        />
+                      </View>
+                      <View style={s.configField}>
+                        <Text style={fi.label}>Email Mittente *</Text>
+                        <TextInput
+                          style={[fi.input, { backgroundColor: Colors.white }]}
+                          value={mailjetConfig.sender_email || ''}
+                          onChangeText={v => setMailjetConfig((p: any) => ({ ...p, sender_email: v }))}
+                          placeholder="noreply@tardugnobonifacio.it"
+                          placeholderTextColor={Colors.textMuted}
+                          autoCapitalize="none"
+                          keyboardType="email-address"
+                        />
+                      </View>
+                      <View style={s.configField}>
+                        <Text style={fi.label}>Nome Mittente</Text>
+                        <TextInput
+                          style={[fi.input, { backgroundColor: Colors.white }]}
+                          value={mailjetConfig.sender_name || ''}
+                          onChangeText={v => setMailjetConfig((p: any) => ({ ...p, sender_name: v }))}
+                          placeholder="Studio Tardugno & Bonifacio"
+                          placeholderTextColor={Colors.textMuted}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                      <Btn label="Salva Configurazione Mailjet" icon="save-outline" color="#7C3AED" onPress={async () => {
+                        try {
+                          await api.updateMailjetConfig(token!, mailjetConfig);
+                          Alert.alert('Salvato', 'Configurazione Mailjet aggiornata');
+                        } catch (e: any) { Alert.alert('Errore', e.message); }
+                      }} />
+                      <Btn label={mailjetTestLoading ? 'Invio in corso...' : 'Invia Email di Test'} icon="paper-plane-outline" outline color="#7C3AED" onPress={async () => {
+                        setMailjetTestLoading(true);
+                        try {
+                          const r = await api.testMailjet(token!);
+                          Alert.alert('Successo', r.message || 'Email di test inviata!');
+                        } catch (e: any) { Alert.alert('Errore', e.message); }
+                        setMailjetTestLoading(false);
+                      }} />
+                    </View>
+
+                    {/* Notification types info */}
+                    <View style={{ marginTop: 20, backgroundColor: Colors.bg, borderRadius: 10, padding: 16 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.navy, marginBottom: 10 }}>Notifiche email attive:</Text>
+                      {[
+                        { icon: 'person-add-outline', label: 'Benvenuto alla registrazione', dest: 'Condomino' },
+                        { icon: 'warning-outline', label: 'Segnalazione creata / aggiornata', dest: 'Condomino + Admin' },
+                        { icon: 'calendar-outline', label: 'Appuntamento confermato / annullato', dest: 'Condomino + Admin' },
+                        { icon: 'document-text-outline', label: 'Richiesta documenti evasa', dest: 'Condomino + Admin' },
+                        { icon: 'megaphone-outline', label: 'Nuovo avviso pubblicato', dest: 'Condomini' },
+                        { icon: 'shield-checkmark-outline', label: 'Richiesta privacy GDPR', dest: 'Admin + Condomino' },
+                        { icon: 'construct-outline', label: 'Intervento assegnato / rapportino', dest: 'Fornitore + Admin' },
+                        { icon: 'send-outline', label: 'Trasmissione documenti ricevuta', dest: 'Admin' },
+                      ].map((n, i) => (
+                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}>
+                          <Ionicons name={n.icon as any} size={16} color={Colors.textSec} style={{ width: 24 }} />
+                          <Text style={{ flex: 1, fontSize: 13, color: Colors.textMain }}>{n.label}</Text>
+                          <Text style={{ fontSize: 12, color: Colors.textMuted, backgroundColor: Colors.white, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>{n.dest}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
                 </View>
               )}
 

@@ -1,5 +1,5 @@
 """Fornitori routes: admin CRUD, fornitore portal, rapportini, assignments."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 import uuid
 
 from database import db, now_iso, clean_doc, create_notifica, add_timeline_event
@@ -61,7 +61,7 @@ async def delete_fornitore(forn_id: str, user=Depends(get_admin_user)):
 # ── Assignment ────────────────────────────────────────────────────────────────
 
 @router.post("/admin/segnalazioni/{seg_id}/assegna")
-async def assegna_fornitore(seg_id: str, data: AssegnaFornitoreCreate, user=Depends(get_admin_user)):
+async def assegna_fornitore(seg_id: str, data: AssegnaFornitoreCreate, bg: BackgroundTasks, user=Depends(get_admin_user)):
     seg = await db.segnalazioni.find_one({"id": seg_id})
     if not seg: raise HTTPException(404, "Segnalazione non trovata")
     forn = await db.fornitori.find_one({"id": data.fornitore_id}, {"_id": 0})
@@ -82,6 +82,10 @@ async def assegna_fornitore(seg_id: str, data: AssegnaFornitoreCreate, user=Depe
     })
     await create_notifica(data.fornitore_id, "Nuovo incarico assegnato",
         f"Nuovo incarico: {seg.get('tipologia', '')} – {seg.get('condominio_nome', 'N/A')}. Urgenza: {seg.get('urgenza', 'Media')}", "warning")
+    # Email: notifica fornitore + condomino
+    from email_service import notify_fornitore_nuovo_intervento, notify_segnalazione_aggiornata
+    bg.add_task(notify_fornitore_nuovo_intervento, seg, forn, data.note_admin or "", data.data_prevista or "")
+    bg.add_task(notify_segnalazione_aggiornata, seg, "Assegnata al fornitore")
     return {**assegnazione, "_id": None}
 
 # ── Fornitore Portal ──────────────────────────────────────────────────────────
@@ -138,7 +142,7 @@ async def fornitore_dashboard(user=Depends(get_fornitore_user)):
 # ── Rapportino ────────────────────────────────────────────────────────────────
 
 @router.post("/fornitore/rapportino/{seg_id}")
-async def create_rapportino(seg_id: str, data: RapportinoCreate, user=Depends(get_fornitore_user)):
+async def create_rapportino(seg_id: str, data: RapportinoCreate, bg: BackgroundTasks, user=Depends(get_fornitore_user)):
     assignment = await db.fornitore_segnalazioni.find_one({"segnalazione_id": seg_id, "fornitore_id": user["id"]})
     if not assignment: raise HTTPException(403, "Non hai accesso a questa segnalazione")
     existing = await db.rapportini.find_one({"segnalazione_id": seg_id, "fornitore_id": user["id"]})
@@ -165,6 +169,10 @@ async def create_rapportino(seg_id: str, data: RapportinoCreate, user=Depends(ge
         for a in admins:
             await create_notifica(a["id"], "Rapportino ricevuto", f"Il fornitore {user.get('nome', '')} ha completato l'intervento su: {seg.get('tipologia', '')}", "info")
         await create_notifica(seg["user_id"], "Intervento completato", f"L'intervento sulla tua segnalazione '{seg.get('tipologia', '')}' è stato completato", "info")
+        # Email: notifica admin rapportino compilato
+        from email_service import notify_admin_rapportino_compilato
+        forn = await db.fornitori.find_one({"id": user["id"]}, {"_id": 0}) or {"ragione_sociale": user.get("nome", "")}
+        bg.add_task(notify_admin_rapportino_compilato, seg, rapportino, forn)
     return {k: v for k, v in rapportino.items() if k != "_id"}
 
 @router.get("/fornitore/rapportino/{seg_id}")
@@ -188,7 +196,7 @@ async def admin_get_rapportino(seg_id: str, user=Depends(get_admin_user)):
     return rap
 
 @router.post("/admin/segnalazioni/{seg_id}/chiudi")
-async def admin_chiudi_segnalazione(seg_id: str, user=Depends(get_admin_user)):
+async def admin_chiudi_segnalazione(seg_id: str, bg: BackgroundTasks, user=Depends(get_admin_user)):
     await db.segnalazioni.update_one({"id": seg_id}, {"$set": {"stato": "Risolta", "updated_at": now_iso()}})
     await db.fornitore_segnalazioni.update_one({"segnalazione_id": seg_id}, {"$set": {"stato": "chiuso"}})
     await add_timeline_event(seg_id, "chiusa", user["id"], "admin", {"note": "Segnalazione chiusa dall'amministratore"})
@@ -196,16 +204,22 @@ async def admin_chiudi_segnalazione(seg_id: str, user=Depends(get_admin_user)):
     if seg:
         await create_notifica(seg["user_id"], "Segnalazione chiusa", f"La segnalazione '{seg.get('tipologia', '')}' è stata chiusa", "info")
         if seg.get("fornitore_id"): await create_notifica(seg["fornitore_id"], "Segnalazione chiusa", f"La segnalazione '{seg.get('tipologia', '')}' è stata chiusa dall'amministratore", "info")
+        from email_service import notify_segnalazione_aggiornata
+        bg.add_task(notify_segnalazione_aggiornata, seg, "Risolta")
     return {"message": "Segnalazione chiusa"}
 
 @router.post("/admin/segnalazioni/{seg_id}/riapri")
-async def admin_riapri_segnalazione(seg_id: str, user=Depends(get_admin_user)):
+async def admin_riapri_segnalazione(seg_id: str, bg: BackgroundTasks, user=Depends(get_admin_user)):
     await db.segnalazioni.update_one({"id": seg_id}, {"$set": {"stato": "Richiesto nuovo intervento", "updated_at": now_iso()}})
     await db.fornitore_segnalazioni.update_one({"segnalazione_id": seg_id}, {"$set": {"stato": "assegnato"}})
     await add_timeline_event(seg_id, "richiesto_nuovo_intervento", user["id"], "admin", {})
     seg = await db.segnalazioni.find_one({"id": seg_id})
     if seg and seg.get("fornitore_id"):
         await create_notifica(seg["fornitore_id"], "Richiesto nuovo intervento", f"L'amministratore richiede un ulteriore intervento su: {seg.get('tipologia', '')}", "warning")
+        forn = await db.fornitori.find_one({"id": seg["fornitore_id"]}, {"_id": 0})
+        if forn:
+            from email_service import notify_fornitore_richiesta_nuovo_intervento
+            bg.add_task(notify_fornitore_richiesta_nuovo_intervento, seg, forn)
     return {"message": "Richiesto nuovo intervento"}
 
 @router.get("/admin/segnalazioni/{seg_id}/timeline")
