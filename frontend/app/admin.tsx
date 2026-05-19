@@ -312,6 +312,8 @@ export default function Admin() {
   const [voiceRecorderKey, setVoiceRecorderKey] = useState(0); // Key to reset VoiceRecorder
   const [playingVoiceNoteIndex, setPlayingVoiceNoteIndex] = useState<number | null>(null);
   const [voiceNoteSound, setVoiceNoteSound] = useState<any>(null);
+  const [anomaliaSaving, setAnomaliaSaving] = useState(false); // Dedicated loading state for anomalia save
+  const [anomaliaError, setAnomaliaError] = useState<string | null>(null); // Error message for anomalia save
 
   // Privacy Admin state
   const [richiestePrivacy, setRichiestePrivacy] = useState<any[]>([]);
@@ -859,6 +861,7 @@ export default function Admin() {
         setAnomaliaPhotos([]);
         setAnomaliaVoiceNotes([]);
         setVoiceRecorderKey(prev => prev + 1);
+        setAnomaliaError(null);
         
         // IMPORTANT: Close sopralluogo detail modal FIRST, then open anomalia modal
         const sopralluogoData = { ...showSopralluogoDetail };
@@ -888,25 +891,41 @@ export default function Admin() {
   };
 
   const saveAnomaliaHandler = async () => {
+    console.log('[saveAnomalia] === HANDLER CALLED ===');
+    console.log('[saveAnomalia] anomaliaForm:', JSON.stringify(anomaliaForm));
+    console.log('[saveAnomalia] showAnomaliaModal:', JSON.stringify({
+      sopId: showAnomaliaModal?.sopralluogo?.id,
+      itemId: showAnomaliaModal?.item?.id,
+      isNew: showAnomaliaModal?.isNew,
+      itemVoce: showAnomaliaModal?.item?.voce,
+    }));
+    console.log('[saveAnomalia] anomaliaSaving:', anomaliaSaving);
+    
+    // Clear any previous error
+    setAnomaliaError(null);
+    
     if (!anomaliaForm.descrizione.trim()) {
-      Alert.alert('Attenzione', 'Inserisci una descrizione');
+      console.log('[saveAnomalia] VALIDATION FAIL: empty description');
+      setAnomaliaError('Inserisci una descrizione per l\'anomalia');
       return;
     }
     if (anomaliaForm.apri_segnalazione && !anomaliaForm.fornitore_id) {
-      Alert.alert('Attenzione', 'Seleziona un fornitore per aprire la segnalazione');
+      console.log('[saveAnomalia] VALIDATION FAIL: no fornitore');
+      setAnomaliaError('Seleziona un fornitore per aprire la segnalazione');
       return;
     }
 
-    setLoading(true);
+    // Use dedicated saving state to avoid conflicts with loadAll
+    setAnomaliaSaving(true);
     try {
-      const sopId = showAnomaliaModal.sopralluogo.id;
-      const itemId = showAnomaliaModal.item.id;
+      const sopId = showAnomaliaModal?.sopralluogo?.id;
+      const itemId = showAnomaliaModal?.item?.id;
       
-      // First verify sopralluogo is still in_corso
-      const currentSop = await api.getSopralluogo(token!, sopId);
-      if (currentSop.stato !== 'in_corso') {
-        Alert.alert('Attenzione', 'Il sopralluogo è stato completato. Non è più possibile modificare le anomalie.');
-        setShowAnomaliaModal(null);
+      console.log('[saveAnomalia] sopId:', sopId, 'itemId:', itemId);
+      
+      if (!sopId || !itemId) {
+        console.log('[saveAnomalia] ERROR: Missing sopId or itemId');
+        setAnomaliaError('Dati sopralluogo non validi. Chiudi e riprova.');
         return;
       }
 
@@ -914,6 +933,7 @@ export default function Admin() {
       const fotoIds: string[] = [];
       for (const photo of anomaliaPhotos) {
         if (!photo.uploadedId) {
+          console.log('[saveAnomalia] Uploading photo:', photo.filename);
           const uploaded = await api.uploadFile(token!, photo.uri, photo.filename, photo.mimeType);
           fotoIds.push(uploaded.id);
         } else {
@@ -925,6 +945,7 @@ export default function Admin() {
       const voiceNoteIds: string[] = [];
       for (const vn of anomaliaVoiceNotes) {
         if (!vn.uploadedId) {
+          console.log('[saveAnomalia] Uploading voice note:', vn.filename);
           const uploaded = await api.uploadFile(token!, vn.uri, vn.filename, 'audio/x-m4a');
           voiceNoteIds.push(uploaded.id);
         } else {
@@ -934,11 +955,14 @@ export default function Admin() {
 
       // If this is a NEW anomaly, first update the checklist item state
       if (showAnomaliaModal.isNew) {
+        console.log('[saveAnomalia] isNew=true, calling updateChecklistItem...');
         await api.updateChecklistItem(token!, sopId, itemId, 'anomalia');
+        console.log('[saveAnomalia] updateChecklistItem OK');
       }
 
       // Now create/update the anomalia with all data
-      await api.createAnomalia(token!, sopId, itemId, {
+      console.log('[saveAnomalia] Calling createAnomalia...');
+      const anomaliaPayload = {
         descrizione: anomaliaForm.descrizione,
         gravita: anomaliaForm.gravita,
         foto_ids: fotoIds,
@@ -948,26 +972,40 @@ export default function Admin() {
         tipologia_intervento: anomaliaForm.tipologia_intervento || undefined,
         urgenza_segnalazione: anomaliaForm.urgenza_segnalazione || undefined,
         note_fornitore: anomaliaForm.note_fornitore || undefined,
-      });
+      };
+      console.log('[saveAnomalia] payload:', JSON.stringify(anomaliaPayload));
+      await api.createAnomalia(token!, sopId, itemId, anomaliaPayload);
+      console.log('[saveAnomalia] createAnomalia OK - SUCCESS!');
 
-      // Close anomalia modal
+      // Success: Close anomalia modal FIRST
+      const savedSopId = sopId; // capture before clearing state
       setShowAnomaliaModal(null);
       setAnomaliaVoiceNotes([]);
+      setAnomaliaError(null);
       
       // Refresh and reopen sopralluogo detail
-      const full = await api.getSopralluogo(token!, sopId);
-      setShowSopralluogoDetail(full);
+      try {
+        const full = await api.getSopralluogo(token!, savedSopId);
+        setShowSopralluogoDetail(full);
+      } catch (_refreshErr) {
+        console.error('[saveAnomalia] Refresh error:', _refreshErr);
+        loadAll();
+      }
       
       if (anomaliaForm.apri_segnalazione) {
         Alert.alert('Salvato', 'Anomalia salvata e segnalazione creata con fornitore assegnato!');
       } else {
-        Alert.alert('Salvato', 'Anomalia salvata');
+        Alert.alert('Salvato', 'Anomalia salvata con successo');
       }
+      // Refresh data in background
       loadAll();
     } catch (e: any) {
-      Alert.alert('Errore', e.message);
+      console.error('[saveAnomalia] CATCH ERROR:', e?.message, e);
+      const errorMsg = e?.message || 'Errore durante il salvataggio';
+      setAnomaliaError(errorMsg);
     } finally {
-      setLoading(false);
+      console.log('[saveAnomalia] FINALLY - setting anomaliaSaving=false');
+      setAnomaliaSaving(false);
     }
   };
 
@@ -976,6 +1014,7 @@ export default function Admin() {
     const sopId = showAnomaliaModal?.sopralluogo?.id;
     setShowAnomaliaModal(null);
     setAnomaliaVoiceNotes([]);
+    setAnomaliaError(null);
     // Stop any playing voice note
     if (voiceNoteSound) {
       await voiceNoteSound.unloadAsync();
@@ -2527,15 +2566,15 @@ export default function Admin() {
                   {/* Semaforo buttons - only if sopralluogo is in progress */}
                   {showSopralluogoDetail?.stato === 'in_corso' && (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <TouchableOpacity onPress={() => updateChecklistItemHandler(showSopralluogoDetail.id, item.id, 'ok')}
+                      <TouchableOpacity testID={`checklist-ok-${item.id}`} onPress={() => updateChecklistItemHandler(showSopralluogoDetail.id, item.id, 'ok')}
                         style={[{ width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }, item.stato === 'ok' ? { backgroundColor: '#22C55E' } : { backgroundColor: '#22C55E20' }]}>
                         <Ionicons name="checkmark" size={18} color={item.stato === 'ok' ? Colors.white : '#22C55E'} />
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => updateChecklistItemHandler(showSopralluogoDetail.id, item.id, 'anomalia')}
+                      <TouchableOpacity testID={`checklist-anomalia-${item.id}`} onPress={() => updateChecklistItemHandler(showSopralluogoDetail.id, item.id, 'anomalia')}
                         style={[{ width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }, item.stato === 'anomalia' ? { backgroundColor: '#F59E0B' } : { backgroundColor: '#F59E0B20' }]}>
                         <Ionicons name="alert" size={18} color={item.stato === 'anomalia' ? Colors.white : '#F59E0B'} />
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => updateChecklistItemHandler(showSopralluogoDetail.id, item.id, 'non_controllato')}
+                      <TouchableOpacity testID={`checklist-nc-${item.id}`} onPress={() => updateChecklistItemHandler(showSopralluogoDetail.id, item.id, 'non_controllato')}
                         style={[{ width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }, item.stato === 'non_controllato' ? { backgroundColor: '#9CA3AF' } : { backgroundColor: '#9CA3AF20' }]}>
                         <Ionicons name="remove" size={18} color={item.stato === 'non_controllato' ? Colors.white : '#9CA3AF'} />
                       </TouchableOpacity>
@@ -2563,8 +2602,10 @@ export default function Admin() {
                     {/* Edit anomalia button */}
                     {showSopralluogoDetail?.stato === 'in_corso' && (
                       <TouchableOpacity onPress={() => {
-                        setShowAnomaliaModal({ sopralluogo: showSopralluogoDetail, item });
-                        setAnomaliaForm({
+                        // Save data before closing sopralluogo detail
+                        const sopData = { ...showSopralluogoDetail };
+                        const itemData = { ...item };
+                        const formData = {
                           descrizione: item.anomalia.descrizione || '',
                           gravita: item.anomalia.gravita || 'Moderata',
                           foto_ids: item.anomalia.foto_ids || [],
@@ -2573,14 +2614,25 @@ export default function Admin() {
                           tipologia_intervento: '',
                           urgenza_segnalazione: '',
                           note_fornitore: ''
-                        });
-                        setAnomaliaPhotos(item.anomalia.foto_dettagli?.map((f: any) => ({
+                        };
+                        const photoData = item.anomalia.foto_dettagli?.map((f: any) => ({
                           uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}${f.url}`,
                           filename: f.filename,
                           mimeType: f.content_type,
                           type: 'image' as const,
                           uploadedId: f.id,
-                        })) || []);
+                        })) || [];
+                        
+                        // Close sopralluogo detail first
+                        setShowSopralluogoDetail(null);
+                        setAnomaliaError(null);
+                        
+                        // Then open anomalia modal after state update
+                        setTimeout(() => {
+                          setShowAnomaliaModal({ sopralluogo: sopData, item: itemData, isNew: false });
+                          setAnomaliaForm(formData);
+                          setAnomaliaPhotos(photoData);
+                        }, 100);
                       }} style={{ marginTop: 8, padding: 8, backgroundColor: '#FCD34D', borderRadius: 6, alignItems: 'center' }}>
                         <Text style={{ fontSize: 12, fontWeight: '600', color: '#78350F' }}>Modifica Anomalia</Text>
                       </TouchableOpacity>
@@ -2710,8 +2762,19 @@ export default function Admin() {
               )}
             </View>
             
-            <PrimaryButton title="Salva Anomalia" onPress={saveAnomaliaHandler} loading={loading} testID="anomalia-save-btn" style={{ backgroundColor: '#F59E0B', marginTop: 16 }} />
-            <TouchableOpacity style={s.closeBtn} onPress={closeAnomaliaModal}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
+            {/* Inline error message */}
+            {anomaliaError ? (
+              <View style={{ marginTop: 12, padding: 12, backgroundColor: '#FEE2E2', borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="alert-circle" size={20} color="#DC2626" />
+                <Text style={{ flex: 1, fontSize: 13, color: '#DC2626', fontWeight: '500' }}>{anomaliaError}</Text>
+                <TouchableOpacity onPress={() => setAnomaliaError(null)}>
+                  <Ionicons name="close-circle" size={20} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+            
+            <PrimaryButton title={anomaliaSaving ? "Salvataggio..." : "Salva Anomalia"} onPress={saveAnomaliaHandler} loading={anomaliaSaving} testID="anomalia-save-btn" style={{ backgroundColor: '#F59E0B', marginTop: 16 }} />
+            <TouchableOpacity style={s.closeBtn} onPress={closeAnomaliaModal} disabled={anomaliaSaving}><Text style={s.closeBtnText}>Annulla</Text></TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>

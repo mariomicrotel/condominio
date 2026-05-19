@@ -1,3 +1,6 @@
+import { Platform } from 'react-native';
+
+
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 const apiCall = async (path: string, opts: { method?: string; token?: string; body?: any } = {}) => {
@@ -88,11 +91,26 @@ export const api = {
   // File Upload
   uploadFile: async (token: string, uri: string, filename: string, mimeType: string): Promise<any> => {
     const formData = new FormData();
-    formData.append('file', {
-      uri,
-      name: filename,
-      type: mimeType,
-    } as any);
+    
+    if (Platform.OS === 'web') {
+      // On web, convert blob/data URI to actual File object
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const file = new File([blob], filename, { type: mimeType });
+        formData.append('file', file);
+      } catch (blobError) {
+        console.error('[uploadFile] Web blob conversion error:', blobError);
+        throw new Error('Errore nella preparazione del file per l\'upload');
+      }
+    } else {
+      // On React Native native, use the RN-specific format
+      formData.append('file', {
+        uri,
+        name: filename,
+        type: mimeType,
+      } as any);
+    }
 
     const res = await fetch(`${BACKEND_URL}/api/upload`, {
       method: 'POST',

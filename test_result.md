@@ -390,9 +390,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Backend Refactoring - Modular Router Architecture"
+    - "Anomalia save bug fix - Mobile Admin UI"
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
   - task: "Admin config endpoints (GET/PUT /admin/config, GET /config/public)"
