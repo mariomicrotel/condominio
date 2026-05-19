@@ -22,7 +22,7 @@ interface MediaFile {
   uploadedId?: string;
 }
 
-type Tab = 'dashboard' | 'condomini' | 'utenti' | 'fornitori' | 'sopralluoghi' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'config' | 'privacy';
+type Tab = 'dashboard' | 'condomini' | 'utenti' | 'fornitori' | 'sopralluoghi' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'richieste-doc' | 'config' | 'privacy';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: 'grid-outline' },
@@ -34,6 +34,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'appuntamenti', label: 'Appuntamenti', icon: 'calendar-outline' },
   { key: 'avvisi', label: 'Avvisi', icon: 'megaphone-outline' },
   { key: 'trasmissioni', label: 'Documenti', icon: 'documents-outline' },
+  { key: 'richieste-doc', label: 'Richieste', icon: 'document-text-outline' },
   { key: 'config', label: 'Impostazioni', icon: 'settings-outline' },
   { key: 'privacy', label: 'Privacy', icon: 'shield-checkmark-outline' },
 ];
@@ -244,7 +245,7 @@ const STAT_ITEMS = [
   { key: 'utenti', label: 'Utenti', field: 'totale_utenti', color: '#3B82F6', icon: 'people', tab: 'utenti' as Tab },
   { key: 'condomini', label: 'Condomini', field: 'totale_condomini', color: '#10B981', icon: 'business', tab: 'condomini' as Tab },
   { key: 'segnalazioni', label: 'Segnalazioni', field: 'segnalazioni_aperte', color: '#F59E0B', icon: 'warning', tab: 'segnalazioni' as Tab },
-  { key: 'richieste', label: 'Richieste', field: 'richieste_in_attesa', color: '#8B5CF6', icon: 'document-text', tab: 'dashboard' as Tab },
+  { key: 'richieste', label: 'Richieste', field: 'richieste_in_attesa', color: '#8B5CF6', icon: 'document-text', tab: 'richieste-doc' as Tab },
   { key: 'appuntamenti', label: 'Appuntamenti', field: 'appuntamenti_da_confermare', color: '#EC4899', icon: 'calendar', tab: 'appuntamenti' as Tab },
   { key: 'avvisi', label: 'Avvisi', field: 'totale_avvisi', color: '#0D9488', icon: 'megaphone', tab: 'avvisi' as Tab },
 ];
@@ -279,6 +280,7 @@ export default function Admin() {
   const [config, setConfig] = useState({ google_maps_api_key: '', firebase_key: '', studio_telefono: '', studio_email: '', studio_pec: '' });
   const [configLoading, setConfigLoading] = useState(false);
   const [trasmissioni, setTrasmissioni] = useState<any[]>([]);
+  const [richiesteDoc, setRichiesteDoc] = useState<any[]>([]);
   const [showECModal, setShowECModal] = useState<any>(null);
   const [ecForm, setEcForm] = useState({ condominio_id: '', periodo: '', quote_versate: '', quote_da_versare: '', scadenza: '', saldo: '', note: '' });
   // Fornitori state
@@ -328,7 +330,7 @@ export default function Admin() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, cond, seg, app, avv, ut, trasm, forn, sop, collab] = await Promise.all([
+      const [s, cond, seg, app, avv, ut, trasm, forn, sop, collab, rDoc] = await Promise.all([
         api.getAdminDashboard(token!), api.getCondomini(token!),
         api.getAdminSegnalazioni(token!), api.getAdminAppuntamenti(token!),
         api.getAdminAvvisi(token!), api.getAdminUtenti(token!),
@@ -336,8 +338,10 @@ export default function Admin() {
         api.getAdminFornitori(token!).catch(() => []),
         api.getSopralluoghi(token!).catch(() => []),
         api.getCollaboratori(token!).catch(() => []),
+        api.getAdminRichieste(token!).catch(() => []),
       ]);
       setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app); setAvvisi(avv); setUtenti(ut); setTrasmissioni(trasm); setFornitori(forn); setSopralluoghi(sop); setCollaboratori(collab);
+      setRichiesteDoc(Array.isArray(rDoc) ? rDoc : []);
       // Load privacy badge count
       api.adminCountScadenzaPrivacy(token!).then((r: any) => setPrivacyScadenzaCount(r.scadenza_imminente || 0)).catch(() => {});
     } catch {} finally { setLoading(false); }
@@ -1628,6 +1632,43 @@ export default function Admin() {
                     </TouchableOpacity>
                   </View>
                 )}
+              </View>
+            )} />
+        )}
+
+        {/* ====== RICHIESTE DOCUMENTI ====== */}
+        {tab === 'richieste-doc' && (
+          <FlatList data={richiesteDoc} keyExtractor={i => i.id} contentContainerStyle={s.content}
+            ListEmptyComponent={<Text style={s.emptyText}>Nessuna richiesta documenti ricevuta</Text>}
+            renderItem={({ item }) => (
+              <View style={s.listCard}>
+                <View style={s.listRow}>
+                  <View style={[s.iconCircle, { backgroundColor: '#EDE9FE' }]}>
+                    <Ionicons name="document-text" size={18} color="#7C3AED" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.listTitle}>{item.tipo_documento}</Text>
+                    <Text style={s.listSub2}>{item.user_nome}</Text>
+                    <Text style={s.listMeta}>{new Date(item.created_at).toLocaleDateString('it-IT')}</Text>
+                    {item.note ? <Text style={[s.listMeta, { marginTop: 2, fontStyle: 'italic' }]}>Note: {item.note}</Text> : null}
+                  </View>
+                  <StatusBadge status={item.stato} />
+                </View>
+                <View style={s.actionRow}>
+                  {['In lavorazione', 'Pronto', 'Consegnato'].map(stato => (
+                    item.stato !== stato ? (
+                      <TouchableOpacity key={stato} style={[s.miniBtn, { backgroundColor: stato === 'Consegnato' ? '#DCFCE7' : stato === 'Pronto' ? '#DBEAFE' : '#FEF3C7' }]}
+                        onPress={async () => {
+                          try {
+                            await api.updateAdminRichiesta(token!, item.id, { stato });
+                            setRichiesteDoc(p => p.map(x => x.id === item.id ? { ...x, stato } : x));
+                          } catch (e: any) { Alert.alert('Errore', e.message); }
+                        }}>
+                        <Text style={[s.miniBtnText, { color: stato === 'Consegnato' ? '#16A34A' : stato === 'Pronto' ? '#2563EB' : '#D97706' }]}>{stato}</Text>
+                      </TouchableOpacity>
+                    ) : null
+                  ))}
+                </View>
               </View>
             )} />
         )}

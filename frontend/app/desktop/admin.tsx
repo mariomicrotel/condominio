@@ -12,7 +12,7 @@ import SopralluogoDetail from '../../src/components/desktop/SopralluogoDetail';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = 'dashboard' | 'condomini' | 'utenti' | 'fornitori' | 'sopralluoghi' |
-           'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'privacy' | 'config';
+           'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'richieste' | 'privacy' | 'config';
 
 const NAV: { key: Tab; label: string; icon: string; color: string }[] = [
   { key: 'dashboard',    label: 'Dashboard',       icon: 'grid',                  color: '#6366F1' },
@@ -24,6 +24,7 @@ const NAV: { key: Tab; label: string; icon: string; color: string }[] = [
   { key: 'appuntamenti', label: 'Appuntamenti',     icon: 'calendar',              color: '#0EA5E9' },
   { key: 'avvisi',       label: 'Avvisi',           icon: 'megaphone',             color: '#F97316' },
   { key: 'trasmissioni', label: 'Documenti',        icon: 'documents',             color: '#14B8A6' },
+  { key: 'richieste',    label: 'Richieste',         icon: 'document-text',         color: '#8B5CF6' },
   { key: 'privacy',      label: 'Privacy',          icon: 'shield-checkmark',      color: '#EC4899' },
   { key: 'config',       label: 'Impostazioni',     icon: 'settings',              color: '#6B7280' },
 ];
@@ -566,6 +567,7 @@ export default function AdminDesktop() {
   const [appuntamenti, setAppuntamenti] = useState<any[]>([]);
   const [avvisi, setAvvisi] = useState<any[]>([]);
   const [trasmissioni, setTrasmissioni] = useState<any[]>([]);
+  const [richiesteDoc, setRichiesteDoc] = useState<any[]>([]);
   const [richiestePrivacy, setRichiestePrivacy] = useState<any[]>([]);
   const [config, setConfig] = useState<any>(null);
   const [collaboratori, setCollaboratori] = useState<any[]>([]);
@@ -592,7 +594,7 @@ export default function AdminDesktop() {
     if (!token) return;
     setLoading(true);
     try {
-      const [s, cond, seg, app, avv, ut, trasm, forn, sop, collab, cfg] = await Promise.all([
+      const [s, cond, seg, app, avv, ut, trasm, forn, sop, collab, cfg, rDoc] = await Promise.all([
         api.getAdminDashboard(token),
         api.getCondomini(token),
         api.getAdminSegnalazioni(token),
@@ -604,10 +606,12 @@ export default function AdminDesktop() {
         api.getSopralluoghi(token).catch(() => []),
         api.getCollaboratori(token).catch(() => []),
         api.getConfig(token).catch(() => null),
+        api.getAdminRichieste(token).catch(() => []),
       ]);
       setStats(s); setCondomini(cond); setSegnalazioni(seg); setAppuntamenti(app);
       setAvvisi(avv); setUtenti(ut); setTrasmissioni(trasm); setFornitori(forn);
       setSopralluoghi(sop); setCollaboratori(collab); setConfig(cfg);
+      setRichiesteDoc(Array.isArray(rDoc) ? rDoc : []);
       api.adminCountScadenzaPrivacy(token).then((r: any) => setPrivacyScadenzaCount(r.scadenza_imminente || 0)).catch(() => {});
     } catch (e: any) { Alert.alert('Errore', e.message); }
     finally { setLoading(false); }
@@ -1137,6 +1141,68 @@ export default function AdminDesktop() {
                     emptyText="Nessuna trasmissione documenti"
                   />
                 </View>
+              )}
+
+              {/* ── RICHIESTE DOCUMENTI ── */}
+              {tab === 'richieste' && (
+                <View>
+                  <PageHeader title="Richieste Documenti" subtitle={`${richiesteDoc.length} richieste ricevute`}
+                    actions={<Btn label="Aggiorna" icon="refresh-outline" onPress={loadAll} outline />}
+                  />
+                  <DataTable
+                    columns={[
+                      { key: 'utente', label: 'Richiedente', flex: 1.5, render: (row: any) => <Text style={dt.cell}>{row.user_nome || '—'}</Text> },
+                      { key: 'tipo_documento', label: 'Tipo Documento', flex: 2 },
+                      { key: 'note', label: 'Note', flex: 1.5, render: (row: any) => <Text style={dt.cell} numberOfLines={1}>{row.note || '—'}</Text> },
+                      { key: 'formato', label: 'Formato', flex: 0.8, render: (row: any) => <Text style={dt.cell}>{row.formato || '—'}</Text> },
+                      { key: 'stato', label: 'Stato', flex: 1, render: (row: any) => <StatoBadge stato={row.stato || '—'} /> },
+                      { key: 'created_at', label: 'Data', flex: 1, render: (row: any) => <Text style={dt.cell}>{fmtDate(row.created_at)}</Text> },
+                    ]}
+                    data={richiesteDoc}
+                    onRowPress={(row: any) => { setSelected(row); setShowModal('detailRichDoc'); }}
+                    emptyText="Nessuna richiesta documenti"
+                  />
+                </View>
+              )}
+
+              {/* Detail Richiesta Documento Modal */}
+              {showModal === 'detailRichDoc' && selected && (
+                <DeskModal visible title={`Richiesta: ${selected.tipo_documento}`} onClose={() => { setShowModal(null); setSelected(null); }} width={520}>
+                  {[
+                    { l: 'Richiedente', v: selected.user_nome || '—' },
+                    { l: 'Tipo Documento', v: selected.tipo_documento },
+                    { l: 'Note', v: selected.note || '—' },
+                    { l: 'Formato', v: selected.formato || '—' },
+                    { l: 'Stato', v: selected.stato },
+                    { l: 'Data Richiesta', v: fmtDate(selected.created_at) },
+                  ].map(({ l, v }) => (
+                    <View key={l} style={{ flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                      <Text style={{ fontSize: 13, color: Colors.textSec, width: 130, fontWeight: '600' }}>{l}</Text>
+                      <Text style={{ fontSize: 14, color: Colors.textMain, fontWeight: '500', flex: 1 }}>{v}</Text>
+                    </View>
+                  ))}
+                  <View style={{ marginTop: 20 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.textSec, marginBottom: 8 }}>Aggiorna Stato:</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                      {['In attesa', 'In lavorazione', 'Pronto', 'Consegnato', 'Rifiutato'].map(stato => (
+                        <TouchableOpacity
+                          key={stato}
+                          style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: selected.stato === stato ? Colors.navy : Colors.bg, borderWidth: 1, borderColor: selected.stato === stato ? Colors.navy : Colors.border }}
+                          onPress={async () => {
+                            try {
+                              await api.updateAdminRichiesta(token!, selected.id, { stato });
+                              setRichiesteDoc(p => p.map(x => x.id === selected.id ? { ...x, stato } : x));
+                              setSelected({ ...selected, stato });
+                              Alert.alert('Aggiornato', `Stato cambiato a "${stato}"`);
+                            } catch (e: any) { Alert.alert('Errore', e.message); }
+                          }}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: selected.stato === stato ? Colors.white : Colors.textSec }}>{stato}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </DeskModal>
               )}
 
               {/* ── PRIVACY ── */}
