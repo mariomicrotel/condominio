@@ -1,5 +1,5 @@
 // Shared types, constants and interfaces for admin mobile tabs
-import { Colors } from '../../constants/Colors';
+import { Colors } from '../../constants/theme';
 
 export type Tab = 'dashboard' | 'condomini' | 'utenti' | 'fornitori' | 'sopralluoghi' | 'segnalazioni' | 'appuntamenti' | 'avvisi' | 'trasmissioni' | 'richieste-doc' | 'config' | 'privacy';
 

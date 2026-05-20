@@ -390,7 +390,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Anomalia save bug fix - Mobile Admin UI"
+    - "Admin.tsx refactoring - all 12 tabs working as separate components"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

@@ -3,17 +3,21 @@ import { View, Text, TouchableOpacity, FlatList, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBadge } from '../SharedComponents';
 import { s } from './styles';
-import api from '../../services/api';
+import { api } from '../../services/api';
 
 interface Props {
   token: string;
   richiesteDoc: any[];
-  setRichiesteDoc: (fn: (p: any[]) => any[]) => void;
+  onRefresh: () => void;
 }
 
-export default function RichiesteDocTab({ token, richiesteDoc, setRichiesteDoc }: Props) {
+export default function RichiesteDocTab({ token, richiesteDoc, onRefresh }: Props) {
+  // Local state for optimistic updates
+  const [localRichieste, setLocalRichieste] = React.useState(richiesteDoc);
+  React.useEffect(() => { setLocalRichieste(richiesteDoc); }, [richiesteDoc]);
+
   return (
-    <FlatList data={richiesteDoc} keyExtractor={i => i.id} contentContainerStyle={s.content}
+    <FlatList data={localRichieste} keyExtractor={i => i.id} contentContainerStyle={s.content}
       ListEmptyComponent={<Text style={s.emptyText}>Nessuna richiesta documenti ricevuta</Text>}
       renderItem={({ item }) => (
         <View style={s.listCard}>
@@ -36,7 +40,7 @@ export default function RichiesteDocTab({ token, richiesteDoc, setRichiesteDoc }
                   onPress={async () => {
                     try {
                       await api.updateAdminRichiesta(token, item.id, { stato });
-                      setRichiesteDoc(p => p.map(x => x.id === item.id ? { ...x, stato } : x));
+                      setLocalRichieste(p => p.map(x => x.id === item.id ? { ...x, stato } : x));
                     } catch (e: any) { Alert.alert('Errore', e.message); }
                   }}>
                   <Text style={[s.miniBtnText, { color: stato === 'Consegnato' ? '#16A34A' : stato === 'Pronto' ? '#2563EB' : '#D97706' }]}>{stato}</Text>

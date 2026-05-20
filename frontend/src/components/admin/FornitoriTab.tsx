@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PrimaryButton, ConfigField } from '../SharedComponents';
 import { SETTORI } from './types';
 import { s } from './styles';
-import api from '../../services/api';
+import { api } from '../../services/api';
 
 interface Props {
   token: string;

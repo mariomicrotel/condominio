@@ -1,0 +1,12 @@
+export { default as DashboardTab } from './DashboardTab';
+export { default as CondominiiTab } from './CondominiiTab';
+export { default as UtentiTab } from './UtentiTab';
+export { default as SegnalazioniTab } from './SegnalazioniTab';
+export { default as SopralluoghiTab } from './SopralluoghiTab';
+export { default as FornitoriTab } from './FornitoriTab';
+export { default as AppuntamentiTab } from './AppuntamentiTab';
+export { default as AvvisiTab } from './AvvisiTab';
+export { default as TrasmissioniTab } from './TrasmissioniTab';
+export { default as RichiesteDocTab } from './RichiesteDocTab';
+export { default as ConfigTab } from './ConfigTab';
+export { default as PrivacyTab } from './PrivacyTab';

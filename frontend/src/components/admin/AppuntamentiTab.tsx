@@ -3,22 +3,23 @@ import { View, Text, TouchableOpacity, FlatList, Modal, Alert } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBadge } from '../SharedComponents';
 import { s } from './styles';
-import api from '../../services/api';
+import { api } from '../../services/api';
 
 interface Props {
   token: string;
   appuntamenti: any[];
-  setAppuntamenti: (fn: (p: any[]) => any[]) => void;
+  condomini: any[];
+  onRefresh: () => void;
 }
 
-export default function AppuntamentiTab({ token, appuntamenti, setAppuntamenti }: Props) {
+export default function AppuntamentiTab({ token, appuntamenti, condomini, onRefresh }: Props) {
   const [modalApp, setModalApp] = useState<any>(null);
 
   const updateApp = async (id: string, stato: string) => {
     try {
       await api.updateAdminApp(token, id, { stato });
-      setAppuntamenti(p => p.map(a => a.id === id ? { ...a, stato } : a));
       setModalApp(null);
+      onRefresh();
     } catch (e: any) { Alert.alert('Errore', e.message); }
   };
 

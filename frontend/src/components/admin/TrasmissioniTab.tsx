@@ -3,24 +3,27 @@ import { View, Text, TouchableOpacity, FlatList, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBadge } from '../SharedComponents';
 import { s } from './styles';
-import api from '../../services/api';
+import { api } from '../../services/api';
 
 interface Props {
   token: string;
   trasmissioni: any[];
-  setTrasmissioni: (fn: (p: any[]) => any[]) => void;
 }
 
-export default function TrasmissioniTab({ token, trasmissioni, setTrasmissioni }: Props) {
+export default function TrasmissioniTab({ token, trasmissioni }: Props) {
+  // Local state for optimistic updates
+  const [localTrasmissioni, setLocalTrasmissioni] = React.useState(trasmissioni);
+  React.useEffect(() => { setLocalTrasmissioni(trasmissioni); }, [trasmissioni]);
+
   const updateTrasmStato = async (id: string, stato: string) => {
     try {
       await api.updateAdminTrasmissione(token, id, stato);
-      setTrasmissioni(p => p.map(t => t.id === id ? { ...t, stato } : t));
+      setLocalTrasmissioni(p => p.map(t => t.id === id ? { ...t, stato } : t));
     } catch (e: any) { Alert.alert('Errore', e.message); }
   };
 
   return (
-    <FlatList data={trasmissioni} keyExtractor={i => i.id} contentContainerStyle={s.content}
+    <FlatList data={localTrasmissioni} keyExtractor={i => i.id} contentContainerStyle={s.content}
       ListEmptyComponent={<Text style={s.emptyText}>Nessuna trasmissione ricevuta</Text>}
       renderItem={({ item }) => (
         <View style={s.listCard}>

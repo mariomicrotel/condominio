@@ -118,6 +118,30 @@ const sb = StyleSheet.create({
   text: { fontSize: 12, fontWeight: '600' },
 });
 
+export function ConfigField({ testID, label, value, placeholder, onChange, keyboardType, multiline }: any) {
+  return (
+    <View style={cf.wrap}>
+      <Text style={cf.label}>{label}</Text>
+      <TextInput
+        testID={testID}
+        style={[cf.input, multiline && { height: 80, textAlignVertical: 'top' }]}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={Colors.textMuted}
+        keyboardType={keyboardType || 'default'}
+        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+        multiline={multiline}
+      />
+    </View>
+  );
+}
+const cf = StyleSheet.create({
+  wrap: { marginBottom: 6 },
+  label: { fontSize: 13, fontWeight: '500', color: Colors.textSec, marginBottom: 4 },
+  input: { height: 52, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 16, fontSize: 16, color: Colors.textMain, marginBottom: 12, backgroundColor: '#F3F4F6' },
+});
+
 export function EmptyState({ message }: { message: string }) {
   return (
     <View style={es.wrap}>

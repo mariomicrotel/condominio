@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { Colors } from '../../constants/Colors';
+import { Colors } from '../../constants/theme';
 
 export const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },

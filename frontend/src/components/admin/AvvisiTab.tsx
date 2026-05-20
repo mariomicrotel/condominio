@@ -3,27 +3,26 @@ import { View, Text, TouchableOpacity, FlatList, TextInput, Modal, Alert, Scroll
 import { Ionicons } from '@expo/vector-icons';
 import { PickerSelect, PrimaryButton } from '../SharedComponents';
 import { s } from './styles';
-import api from '../../services/api';
+import { api } from '../../services/api';
 
 interface Props {
   token: string;
   avvisi: any[];
-  setAvvisi: (fn: (p: any[]) => any[]) => void;
   condomini: any[];
-  showNewAvviso: boolean;
-  setShowNewAvviso: (v: boolean) => void;
+  onRefresh: () => void;
 }
 
-export default function AvvisiTab({ token, avvisi, setAvvisi, condomini, showNewAvviso, setShowNewAvviso }: Props) {
+export default function AvvisiTab({ token, avvisi, condomini, onRefresh }: Props) {
+  const [showNewAvviso, setShowNewAvviso] = useState(false);
   const [newAvviso, setNewAvviso] = useState({ titolo: '', testo: '', categoria: 'Avviso generico', condominio_id: '' });
 
   const createAvviso = async () => {
     if (!newAvviso.titolo.trim() || !newAvviso.testo.trim()) { Alert.alert('Attenzione', 'Inserisci titolo e testo'); return; }
     try {
-      const a = await api.createAdminAvviso(token, { ...newAvviso, condominio_id: newAvviso.condominio_id || null });
-      setAvvisi(p => [a, ...p]);
+      await api.createAdminAvviso(token, { ...newAvviso, condominio_id: newAvviso.condominio_id || null });
       setShowNewAvviso(false);
       setNewAvviso({ titolo: '', testo: '', categoria: 'Avviso generico', condominio_id: '' });
+      onRefresh();
     } catch (e: any) { Alert.alert('Errore', e.message); }
   };
 
@@ -31,7 +30,7 @@ export default function AvvisiTab({ token, avvisi, setAvvisi, condomini, showNew
     Alert.alert('Elimina', 'Eliminare questo avviso?', [
       { text: 'Annulla' },
       { text: 'Elimina', style: 'destructive', onPress: async () => {
-        await api.deleteAdminAvviso(token, id); setAvvisi(p => p.filter(a => a.id !== id));
+        await api.deleteAdminAvviso(token, id); onRefresh();
       }},
     ]);
   };
