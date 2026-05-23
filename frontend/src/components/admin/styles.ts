@@ -121,7 +121,7 @@ export const pvs = StyleSheet.create({
   emptySubText: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
   card: {
     backgroundColor: Colors.white, borderRadius: 12, padding: 14, marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+    borderWidth: 1, borderColor: Colors.border,
   },
   cardScadente: { borderLeftWidth: 3, borderLeftColor: '#DC2626' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

@@ -6,7 +6,7 @@ import { s } from './styles';
 import { api } from '../../services/api';
 import { Colors } from '../../constants/theme';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
 import { VoiceRecorder } from '../VoiceRecorder';
 
 interface MediaFile { uri: string; filename: string; mimeType: string; size?: number; type: 'image' | 'video' | 'pdf'; uploadedId?: string; }
@@ -108,17 +108,18 @@ export default function SopralluoghiTab({ token, sopralluoghi, condomini, collab
   const closeAnomaliaModal = async () => {
     const sopId = showAnomaliaModal?.sopralluogo?.id;
     setShowAnomaliaModal(null); setAnomaliaVoiceNotes([]); setAnomaliaError(null);
-    if (voiceNoteSound) { await voiceNoteSound.unloadAsync(); setVoiceNoteSound(null); }
+    if (voiceNoteSound) { voiceNoteSound.release(); setVoiceNoteSound(null); }
     setPlayingVoiceNoteIndex(null);
     if (sopId) { try { const full = await api.getSopralluogo(token, sopId); setShowSopralluogoDetail(full); } catch { onRefresh(); } }
   };
 
   const playVoiceNote = async (uri: string, index: number) => {
     try {
-      if (playingVoiceNoteIndex === index && voiceNoteSound) { await voiceNoteSound.stopAsync(); await voiceNoteSound.unloadAsync(); setVoiceNoteSound(null); setPlayingVoiceNoteIndex(null); return; }
-      if (voiceNoteSound) { await voiceNoteSound.stopAsync(); await voiceNoteSound.unloadAsync(); }
-      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true }, (status: any) => { if (status.didJustFinish) { setPlayingVoiceNoteIndex(null); setVoiceNoteSound(null); } });
-      setVoiceNoteSound(sound); setPlayingVoiceNoteIndex(index);
+      if (playingVoiceNoteIndex === index && voiceNoteSound) { voiceNoteSound.pause(); voiceNoteSound.release(); setVoiceNoteSound(null); setPlayingVoiceNoteIndex(null); return; }
+      if (voiceNoteSound) { voiceNoteSound.pause(); voiceNoteSound.release(); }
+      const player = createAudioPlayer({ uri });
+      player.play();
+      setVoiceNoteSound(player); setPlayingVoiceNoteIndex(index);
     } catch { Alert.alert('Errore', 'Impossibile riprodurre la nota vocale'); }
   };
 
