@@ -117,7 +117,7 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { padding: 16 },
-  condCard: { backgroundColor: Colors.white, borderRadius: 14, padding: 18, marginBottom: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 },
+  condCard: { backgroundColor: Colors.white, borderRadius: 14, padding: 18, marginBottom: 14},
   condHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   condIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: Colors.skyLight, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   condName: { fontSize: 18, fontWeight: '700', color: Colors.navy },
@@ -126,7 +126,7 @@ const s = StyleSheet.create({
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   infoLabel: { fontSize: 13, color: Colors.textMuted, marginLeft: 8, marginRight: 4 },
   infoValue: { fontSize: 13, fontWeight: '500', color: Colors.textMain, flex: 1 },
-  ecCard: { backgroundColor: Colors.white, borderRadius: 14, padding: 18, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.sky, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 },
+  ecCard: { backgroundColor: Colors.white, borderRadius: 14, padding: 18, marginBottom: 14, borderLeftWidth: 4, borderLeftColor: Colors.sky},
   ecTitle: { fontSize: 18, fontWeight: '700', color: Colors.navy },
   ecPeriodo: { fontSize: 13, color: Colors.textMuted, marginTop: 2, marginBottom: 16 },
   ecGrid: { flexDirection: 'row', marginBottom: 14 },

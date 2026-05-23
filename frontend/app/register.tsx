@@ -237,7 +237,7 @@ const s = StyleSheet.create({
   subtitle: { fontSize: 14, color: Colors.textSec, marginTop: 6, marginBottom: 16 },
   infoBox: { flexDirection: 'row', backgroundColor: '#E0F2FE', borderRadius: 10, padding: 12, marginBottom: 20, borderLeftWidth: 3, borderLeftColor: '#0284C7' },
   infoText: { fontSize: 13, color: '#0369A1', marginLeft: 10, flex: 1, lineHeight: 19 },
-  form: { backgroundColor: Colors.white, borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
+  form: { backgroundColor: Colors.white, borderRadius: 16, padding: 20},
   row: { flexDirection: 'row' },
   inputWrap: { flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, paddingHorizontal: 14, marginBottom: 14 },
   icon: { marginRight: 10 },

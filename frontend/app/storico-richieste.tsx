@@ -46,7 +46,7 @@ export default function StoricoRichieste() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   list: { padding: 16, paddingBottom: 32 },
-  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },
+  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12},
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   tipo: { fontSize: 16, fontWeight: '600', color: Colors.textMain, flex: 1, marginRight: 8 },
   formato: { fontSize: 13, color: Colors.textSec, marginBottom: 4 },

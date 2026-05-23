@@ -98,7 +98,7 @@ const s = StyleSheet.create({
   list: { padding: 16, paddingBottom: 32 },
   markAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
   markAllText: { fontSize: 14, fontWeight: '500', color: Colors.sky, marginLeft: 6 },
-  card: { flexDirection: 'row', backgroundColor: Colors.white, borderRadius: 12, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },
+  card: { flexDirection: 'row', backgroundColor: Colors.white, borderRadius: 12, padding: 14, marginBottom: 10},
   unread: { backgroundColor: '#F0F9FF', borderLeftWidth: 3, borderLeftColor: Colors.sky },
   iconWrap: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },

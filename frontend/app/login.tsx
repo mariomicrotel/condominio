@@ -87,7 +87,7 @@ const s = StyleSheet.create({
   brand: { fontSize: 26, fontWeight: '700', color: Colors.navy },
   brandSub: { fontSize: 22, fontWeight: '600', color: Colors.sky },
   subtitle: { fontSize: 13, color: Colors.textMuted, marginTop: 6, textAlign: 'center' },
-  form: { backgroundColor: Colors.white, borderRadius: 16, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
+  form: { backgroundColor: Colors.white, borderRadius: 16, padding: 24},
   formTitle: { fontSize: 22, fontWeight: '700', color: Colors.navy, marginBottom: 24, textAlign: 'center' },
   inputWrap: { flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, paddingHorizontal: 14, marginBottom: 16 },
   inputIcon: { marginRight: 10 },

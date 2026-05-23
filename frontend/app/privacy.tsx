@@ -644,7 +644,7 @@ const s = StyleSheet.create({
 const sec = StyleSheet.create({
   card: {
     backgroundColor: Colors.white, borderRadius: 14, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    
   },
   header: {
     flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 14,

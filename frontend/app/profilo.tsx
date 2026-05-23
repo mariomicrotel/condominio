@@ -111,7 +111,7 @@ const s = StyleSheet.create({
   email: { fontSize: 14, color: Colors.textSec, marginTop: 2 },
   roleBadge: { backgroundColor: Colors.skyLight, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginTop: 8 },
   roleText: { fontSize: 12, fontWeight: '600', color: Colors.sky },
-  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 },
+  card: { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12},
   cardTitle: { fontSize: 17, fontWeight: '600', color: Colors.navy, marginBottom: 14 },
   condItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
   condName: { fontSize: 15, fontWeight: '600', color: Colors.textMain },
@@ -119,7 +119,7 @@ const s = StyleSheet.create({
   privacyCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
+    
   },
   privacyIcon: {
     width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.skyLight,

@@ -133,7 +133,7 @@ function DeskModal({ visible, title, onClose, children, width = 560 }: {
 }
 const dm = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  card: { backgroundColor: Colors.white, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.15, shadowRadius: 40, elevation: 24, overflow: 'hidden' },
+  card: { backgroundColor: Colors.white, borderRadius: 16,  overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.border },
   title: { fontSize: 18, fontWeight: '700', color: Colors.navy },
   closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.bg, justifyContent: 'center', alignItems: 'center' },
@@ -326,7 +326,7 @@ function SegnalazioneDetailModal({ seg, token, condomini, fornitori, onClose, on
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ width: 720, maxHeight: '90%', backgroundColor: Colors.white, borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.15, shadowRadius: 40, elevation: 24 }}>
+        <View style={{ width: 720, maxHeight: '90%', backgroundColor: Colors.white, borderRadius: 16, overflow: 'hidden'}}>
           {/* Header */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.navy, paddingHorizontal: 24, paddingVertical: 16 }}>
             <View>
@@ -1628,7 +1628,7 @@ const s = StyleSheet.create({
   statCard: {
     flex: 1, minWidth: 200, backgroundColor: Colors.white,
     borderRadius: 14, padding: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    
   },
   statIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   statValue: { fontSize: 32, fontWeight: '800', color: Colors.navy },
