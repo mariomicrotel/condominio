@@ -190,7 +190,7 @@ export default function Segnalazioni() {
             </Text>
           </View>
 
-          <FormInput label="Nome e Cognome" value={`${user?.nome} ${user?.cognome}`} editable={false} testID="seg-nome-input" />
+          <FormInput label="Nome e Cognome" value={`${user?.nome || ''} ${user?.cognome || ''}`.trim() || 'Caricamento...'} editable={false} testID="seg-nome-input" />
           <FormInput label="Email" value={user?.email} editable={false} testID="seg-email-input" />
           <FormInput label="Telefono" value={user?.telefono} editable={false} testID="seg-telefono-input" />
 
