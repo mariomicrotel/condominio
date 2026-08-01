@@ -1,155 +1,193 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '../services/api';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { Alert, AppState } from 'react-native';
+import { secureStorage } from '../utils/secureStorage';
+import { setOnTokenExpired } from '../services/api';
 
-type User = {
-  id: string; email: string; nome: string; cognome: string;
-  telefono: string; indirizzo: string; codice_fiscale: string;
-  ruolo: string; condomini?: any[];
-};
+// JWT expiry: 72 hours (must match backend JWT_EXP_HOURS)
+const JWT_EXPIRY_MS = 72 * 60 * 60 * 1000;
+// Warn user 30 minutes before expiry
+const EXPIRY_WARNING_MS = 30 * 60 * 1000;
 
-type GdprUpdateInfo = {
-  versione_attiva: string;
-  data_pubblicazione: string;
-  note_versione: string;
-  testo_completo: string;
-};
-
-type AuthContextType = {
-  user: User | null; token: string | null; loading: boolean;
-  login: (email: string, password: string) => Promise<User>;
-  loginCollaboratore: (email: string, password: string) => Promise<User>;
-  register: (data: any) => Promise<User>;
-  logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+interface AuthContextType {
+  token: string | null;
+  userRole: string | null;
+  loading: boolean;
   gdprUpdateRequired: boolean;
-  gdprUpdateInfo: GdprUpdateInfo | null;
-  confirmGdprUpdate: (versione: string) => Promise<void>;
-};
+  gdprUpdateInfo: { versione: string; note: string; data: string } | null;
+  login: (token: string, role: string) => Promise<void>;
+  logout: () => Promise<void>;
+  confirmGdprUpdate: () => void;
+}
 
-const AuthContext = createContext<AuthContextType>({} as AuthContextType);
+const AuthContext = createContext<AuthContextType>({
+  token: null,
+  userRole: null,
+  loading: true,
+  gdprUpdateRequired: false,
+  gdprUpdateInfo: null,
+  login: async () => {},
+  logout: async () => {},
+  confirmGdprUpdate: () => {},
+});
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [gdprUpdateRequired, setGdprUpdateRequired] = useState(false);
-  const [gdprUpdateInfo, setGdprUpdateInfo] = useState<GdprUpdateInfo | null>(null);
+  const [gdprUpdateInfo, setGdprUpdateInfo] = useState<{ versione: string; note: string; data: string } | null>(null);
+  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const checkGdprUpdate = useCallback(async (tkn: string) => {
+  // Check GDPR consent
+  const checkGdprConsent = useCallback(async (authToken: string) => {
     try {
-      const res = await api.verificaAggiornamentoInformativa(tkn);
-      if (res.aggiornamento_richiesto) {
-        setGdprUpdateRequired(true);
-        setGdprUpdateInfo({
-          versione_attiva: res.versione_attiva,
-          data_pubblicazione: res.data_pubblicazione,
-          note_versione: res.note_versione,
-          testo_completo: res.testo_completo,
-        });
-      } else {
-        setGdprUpdateRequired(false);
-        setGdprUpdateInfo(null);
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+      const res = await fetch(`${BACKEND_URL}/api/privacy/check-consent`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.update_required) {
+          setGdprUpdateRequired(true);
+          setGdprUpdateInfo({
+            versione: data.nuova_versione || '',
+            note: data.note_versione || '',
+            data: data.data_pubblicazione || '',
+          });
+        }
       }
-    } catch {
-      // Silently ignore GDPR check errors
+    } catch {}
+  }, []);
+
+  // Set up expiry timer
+  const setupExpiryTimer = useCallback(async () => {
+    // Clear any existing timer
+    if (expiryTimerRef.current) {
+      clearTimeout(expiryTimerRef.current);
+      expiryTimerRef.current = null;
+    }
+
+    const expiry = await secureStorage.getTokenExpiry();
+    if (!expiry) return;
+
+    const now = Date.now();
+    const timeUntilExpiry = expiry - now;
+
+    if (timeUntilExpiry <= 0) {
+      // Already expired
+      await performLogout();
+      Alert.alert('Sessione scaduta', 'La tua sessione è scaduta. Effettua nuovamente il login.');
+      return;
+    }
+
+    // Set warning timer (30 min before expiry)
+    const warningTime = timeUntilExpiry - EXPIRY_WARNING_MS;
+    if (warningTime > 0) {
+      expiryTimerRef.current = setTimeout(() => {
+        Alert.alert(
+          'Sessione in scadenza',
+          'La tua sessione scadrà tra 30 minuti. Salva il tuo lavoro.',
+          [{ text: 'OK' }]
+        );
+        // Set final expiry timer
+        expiryTimerRef.current = setTimeout(async () => {
+          await performLogout();
+          Alert.alert('Sessione scaduta', 'La tua sessione è scaduta. Effettua nuovamente il login.');
+        }, EXPIRY_WARNING_MS);
+      }, warningTime);
+    } else {
+      // Less than 30 min remaining, set direct expiry timer
+      expiryTimerRef.current = setTimeout(async () => {
+        await performLogout();
+        Alert.alert('Sessione scaduta', 'La tua sessione è scaduta. Effettua nuovamente il login.');
+      }, timeUntilExpiry);
     }
   }, []);
 
+  // Handle app state changes (check expiry when app comes to foreground)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (nextState === 'active' && token) {
+        const expired = await secureStorage.isTokenExpired();
+        if (expired) {
+          await performLogout();
+          Alert.alert('Sessione scaduta', 'La tua sessione è scaduta. Effettua nuovamente il login.');
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, [token]);
+
+  // Register API interceptor for expired tokens
+  useEffect(() => {
+    setOnTokenExpired(() => {
+      performLogout();
+    });
+  }, []);
+
+  // Initialize: restore token from secure storage
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem('token');
-        const storedRole = await AsyncStorage.getItem('userRole');
-        if (stored) {
-          if (storedRole === 'collaboratore') {
-            // Collaboratore uses different profile endpoint
-            const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-            const res = await fetch(`${BACKEND_URL}/api/collaboratore/profilo`, {
-              headers: { 'Authorization': `Bearer ${stored}` },
-            });
-            if (res.ok) {
-              const profile = await res.json();
-              setToken(stored);
-              setUser(profile);
-            } else {
-              await AsyncStorage.removeItem('token');
-              await AsyncStorage.removeItem('userRole');
-            }
+        const storedToken = await secureStorage.getToken();
+        const storedRole = await secureStorage.getRole();
+
+        if (storedToken) {
+          // Check if token is expired
+          const expired = await secureStorage.isTokenExpired();
+          if (expired) {
+            await secureStorage.clearAll();
           } else {
-            const profile = await api.getProfile(stored);
-            setToken(stored);
-            setUser(profile);
-            // Only check GDPR for condomino/fornitore roles (not admin/collaboratore)
-            if (profile.ruolo === 'condomino') {
-              await checkGdprUpdate(stored);
-            }
+            setToken(storedToken);
+            setUserRole(storedRole);
+            await checkGdprConsent(storedToken);
+            await setupExpiryTimer();
           }
         }
-      } catch {
-        await AsyncStorage.removeItem('token');
-        await AsyncStorage.removeItem('userRole');
+      } catch (e) {
+        console.error('Error restoring auth:', e);
+        await secureStorage.clearAll();
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const data = await api.login(email, password);
-    setToken(data.token);
-    setUser(data.user);
-    await AsyncStorage.setItem('token', data.token);
-    await AsyncStorage.setItem('userRole', data.user.ruolo || '');
-    // Check GDPR update after login (only for condomino)
-    if (data.user.ruolo === 'condomino') {
-      await checkGdprUpdate(data.token);
+  const performLogout = async () => {
+    if (expiryTimerRef.current) {
+      clearTimeout(expiryTimerRef.current);
+      expiryTimerRef.current = null;
     }
-    return data.user;
-  }, [checkGdprUpdate]);
-
-  const loginCollaboratore = useCallback(async (email: string, password: string) => {
-    const data = await api.collaboratoreLogin(email, password);
-    setToken(data.token);
-    setUser(data.user);
-    await AsyncStorage.setItem('token', data.token);
-    await AsyncStorage.setItem('userRole', 'collaboratore');
-    return data.user;
-  }, []);
-
-  const register = useCallback(async (userData: any) => {
-    const data = await api.register(userData);
-    setToken(data.token);
-    setUser(data.user);
-    await AsyncStorage.setItem('token', data.token);
-    return data.user;
-  }, []);
-
-  const logout = useCallback(async () => {
-    setUser(null);
+    await secureStorage.clearAll();
     setToken(null);
+    setUserRole(null);
     setGdprUpdateRequired(false);
     setGdprUpdateInfo(null);
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('userRole');
-  }, []);
+  };
 
-  const refreshProfile = useCallback(async () => {
-    if (token) {
-      const profile = await api.getProfile(token);
-      setUser(profile);
-    }
-  }, [token]);
+  const login = async (newToken: string, role: string) => {
+    // Store token + role + expiry
+    const expiryTimestamp = Date.now() + JWT_EXPIRY_MS;
+    await secureStorage.setToken(newToken);
+    await secureStorage.setRole(role);
+    await secureStorage.setTokenExpiry(expiryTimestamp);
+    setToken(newToken);
+    setUserRole(role);
+    await checkGdprConsent(newToken);
+    await setupExpiryTimer();
+  };
 
-  const confirmGdprUpdate = useCallback(async (versione: string) => {
-    if (!token) return;
-    await api.confermaAggiornamentoInformativa(token, versione);
+  const logout = async () => {
+    await performLogout();
+  };
+
+  const confirmGdprUpdate = () => {
     setGdprUpdateRequired(false);
     setGdprUpdateInfo(null);
-  }, [token]);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginCollaboratore, register, logout, refreshProfile, gdprUpdateRequired, gdprUpdateInfo, confirmGdprUpdate }}>
+    <AuthContext.Provider value={{ token, userRole, loading, gdprUpdateRequired, gdprUpdateInfo, login, logout, confirmGdprUpdate }}>
       {children}
     </AuthContext.Provider>
   );

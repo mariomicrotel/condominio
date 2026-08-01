@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/context/AuthContext';
+import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
 
 export default function Login() {
@@ -21,7 +22,9 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const user = await login(email.trim(), password);
+      const result = await api.login(email.trim(), password);
+      const user = result.user;
+      await login(result.token, user.ruolo);
       if (user.ruolo === 'admin') {
         router.replace('/admin');
       } else if (user.ruolo === 'fornitore') {

@@ -3,6 +3,10 @@ import { Platform } from 'react-native';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
+// Token expired callback — set by AuthContext to trigger auto-logout
+let onTokenExpired: (() => void) | null = null;
+export const setOnTokenExpired = (callback: () => void) => { onTokenExpired = callback; };
+
 const apiCall = async (path: string, opts: { method?: string; token?: string; body?: any } = {}) => {
   const url = `${BACKEND_URL}/api${path}`;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -14,8 +18,21 @@ const apiCall = async (path: string, opts: { method?: string; token?: string; bo
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
 
+  // Handle expired token (401/403 on authenticated requests)
+  if ((res.status === 401 || res.status === 403) && opts.token) {
+    if (onTokenExpired) {
+      onTokenExpired();
+    }
+    throw new Error('Sessione scaduta. Effettua nuovamente il login.');
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Errore di rete' }));
+    // Handle validation errors from Pydantic (password rules, etc.)
+    if (err.detail && Array.isArray(err.detail)) {
+      const messages = err.detail.map((e: any) => e.msg || e.message || JSON.stringify(e));
+      throw new Error(messages.join('\n'));
+    }
     throw new Error(err.detail || 'Errore del server');
   }
   return res.json();

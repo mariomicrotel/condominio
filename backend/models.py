@@ -1,5 +1,6 @@
 """All Pydantic models for the Studio Tardugno & Bonifacio API."""
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, field_validator
 from typing import List, Optional
 
 
@@ -14,6 +15,26 @@ class UserCreate(BaseModel):
     indirizzo: str = ""
     codice_fiscale: str = ""
     codice_invito: str = ""
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError('La password deve contenere almeno 8 caratteri')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('La password deve contenere almeno una lettera maiuscola')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('La password deve contenere almeno una lettera minuscola')
+        if not re.search(r'[0-9]', v):
+            raise ValueError('La password deve contenere almeno un numero')
+        return v
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', v):
+            raise ValueError('Inserisci un indirizzo email valido')
+        return v.lower().strip()
 
 class UserLogin(BaseModel):
     email: str

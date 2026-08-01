@@ -6,7 +6,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/context/AuthContext';
 import { api } from '../src/services/api';
 import { Colors } from '../src/constants/theme';
@@ -57,7 +56,7 @@ function PrivacyPolicyModal({ visible, onClose }: { visible: boolean; onClose: (
 
 export default function Register() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { login } = useAuth();
   const [form, setForm] = useState({
     nome: '', cognome: '', email: '', password: '',
     telefono: '', indirizzo: '', codice_fiscale: '',
@@ -75,8 +74,8 @@ export default function Register() {
       Alert.alert('Attenzione', 'Compila tutti i campi obbligatori');
       return;
     }
-    if (form.password.length < 6) {
-      Alert.alert('Attenzione', 'La password deve avere almeno 6 caratteri');
+    if (form.password.length < 8) {
+      Alert.alert('Attenzione', 'La password deve avere almeno 8 caratteri, con maiuscola, minuscola e numero');
       return;
     }
     if (!consensoPrivacy) {
@@ -85,19 +84,18 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await register(form);
+      const result = await api.register(form);
+      // Login automatically after registration
+      await login(result.token, result.user?.ruolo || 'condomino');
       // Save consents immediately after registration
-      const storedToken = await AsyncStorage.getItem('token');
-      if (storedToken) {
-        try {
-          await api.salvaConsensiRegistrazione(storedToken, {
-            consenso_privacy: consensoPrivacy,
-            consenso_marketing: consensoMarketing,
-            consenso_note_vocali: consensoNoteVocali,
-          });
-        } catch {
-          // Non-critical: silently ignore consent saving errors
-        }
+      try {
+        await api.salvaConsensiRegistrazione(result.token, {
+          consenso_privacy: consensoPrivacy,
+          consenso_marketing: consensoMarketing,
+          consenso_note_vocali: consensoNoteVocali,
+        });
+      } catch {
+        // Non-critical: silently ignore consent saving errors
       }
       router.replace('/home');
     } catch (e: any) {

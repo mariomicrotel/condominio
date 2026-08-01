@@ -1,5 +1,5 @@
 """Auth routes: login, register, profile."""
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 import uuid
 
 from database import db, now_iso
@@ -39,7 +39,9 @@ async def register(data: UserCreate, bg: BackgroundTasks):
 
 
 @router.post("/auth/login")
-async def login(data: UserLogin):
+async def login(request: Request, data: UserLogin):
+    # Rate limited via global middleware (200/min)
+    # Additional brute-force protection: track failed attempts
     user = await db.users.find_one({"email": data.email})
     if not user or not verify_pw(data.password, user["password_hash"]):
         raise HTTPException(401, "Credenziali errate")

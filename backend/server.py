@@ -3,8 +3,14 @@
 All route logic lives under routers/.
 This file wires everything together: CORS, routers, seed, and lifecycle events.
 """
-from fastapi import FastAPI, APIRouter
+import os
+from fastapi import FastAPI, APIRouter, Request
 from starlette.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from starlette.responses import JSONResponse
 import uuid
 import logging
 
@@ -20,14 +26,42 @@ from routers import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+# ── Rate Limiter ──────────────────────────────────────────────────────────────
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+
 # ── App & Router ──────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Studio Tardugno & Bonifacio API", version="2.0.0")
+app = FastAPI(title="Studio Tardugno & Bonifacio API", version="2.1.0")
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Troppi tentativi. Riprova tra qualche minuto."}
+    )
+
+# CORS: restrict to known origins (allow frontend preview + localhost dev)
+ALLOWED_ORIGINS = [
+    os.environ.get("FRONTEND_URL", "https://backend-refactor-86.preview.emergentagent.com"),
+    "http://localhost:3000",
+    "http://localhost:8081",
+    "http://localhost:19006",
+]
+# Also allow the EXPO_PUBLIC_BACKEND_URL if set (same domain)
+backend_url = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "")
+if backend_url and backend_url not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(backend_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS, allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 api = APIRouter(prefix="/api")
@@ -52,7 +86,7 @@ async def root():
 async def seed_data():
     admin = await db.users.find_one({"email": "admin@tardugno.it"})
     if admin:
-        return {"message": "Dati già inseriti", "admin_email": "admin@tardugno.it", "admin_password": "admin123"}
+        return {"message": "Dati già inizializzati"}
 
     admin_id = str(uuid.uuid4())
     await db.users.insert_one({
@@ -113,9 +147,7 @@ async def seed_data():
 
     return {
         "message": "Dati seed inseriti con successo",
-        "admin": {"email": "admin@tardugno.it", "password": "admin123"},
-        "condomino": {"email": "mario.rossi@email.it", "password": "password123"},
-        "codice_invito": "WELCOME1"
+        "note": "Credenziali di default create. Consultare documentazione interna."
     }
 
 
