@@ -8,35 +8,57 @@ const JWT_EXPIRY_MS = 72 * 60 * 60 * 1000;
 // Warn user 30 minutes before expiry
 const EXPIRY_WARNING_MS = 30 * 60 * 1000;
 
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
 interface AuthContextType {
   token: string | null;
   userRole: string | null;
+  user: any;
   loading: boolean;
   gdprUpdateRequired: boolean;
   gdprUpdateInfo: { versione: string; note: string; data: string } | null;
-  login: (token: string, role: string) => Promise<void>;
+  login: (token: string, role: string, user?: any) => Promise<void>;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   confirmGdprUpdate: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
   userRole: null,
+  user: null,
   loading: true,
   gdprUpdateRequired: false,
   gdprUpdateInfo: null,
   login: async () => {},
   logout: async () => {},
+  refreshProfile: async () => {},
   confirmGdprUpdate: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [gdprUpdateRequired, setGdprUpdateRequired] = useState(false);
   const [gdprUpdateInfo, setGdprUpdateInfo] = useState<{ versione: string; note: string; data: string } | null>(null);
   const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch user profile
+  const refreshProfile = useCallback(async () => {
+    const currentToken = await secureStorage.getToken();
+    if (!currentToken) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/profile`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      });
+      if (res.ok) {
+        const profile = await res.json();
+        setUser(profile);
+      }
+    } catch {}
+  }, []);
 
   // Check GDPR consent
   const checkGdprConsent = useCallback(async (authToken: string) => {
@@ -140,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             setToken(storedToken);
             setUserRole(storedRole);
+            await refreshProfile();
             await checkGdprConsent(storedToken);
             await setupExpiryTimer();
           }
@@ -161,11 +184,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await secureStorage.clearAll();
     setToken(null);
     setUserRole(null);
+    setUser(null);
     setGdprUpdateRequired(false);
     setGdprUpdateInfo(null);
   };
 
-  const login = async (newToken: string, role: string) => {
+  const login = async (newToken: string, role: string, userData?: any) => {
     // Store token + role + expiry
     const expiryTimestamp = Date.now() + JWT_EXPIRY_MS;
     await secureStorage.setToken(newToken);
@@ -173,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await secureStorage.setTokenExpiry(expiryTimestamp);
     setToken(newToken);
     setUserRole(role);
+    if (userData) setUser(userData);
     await checkGdprConsent(newToken);
     await setupExpiryTimer();
   };
@@ -187,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, userRole, loading, gdprUpdateRequired, gdprUpdateInfo, login, logout, confirmGdprUpdate }}>
+    <AuthContext.Provider value={{ token, userRole, user, loading, gdprUpdateRequired, gdprUpdateInfo, login, logout, refreshProfile, confirmGdprUpdate }}>
       {children}
     </AuthContext.Provider>
   );

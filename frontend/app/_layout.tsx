@@ -6,6 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../src/constants/theme';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
+import { OfflineBanner } from '../src/components/OfflineBanner';
 
 function GdprUpdateModal() {
   const { gdprUpdateRequired, gdprUpdateInfo, confirmGdprUpdate, logout } = useAuth();
@@ -109,6 +111,7 @@ function AppLayout() {
   return (
     <>
       <StatusBar style="dark" />
+      <OfflineBanner />
       <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }} />
       <GdprUpdateModal />
     </>
@@ -117,9 +120,11 @@ function AppLayout() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AppLayout />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppLayout />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

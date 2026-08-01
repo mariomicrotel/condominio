@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, AppState } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, AppState, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,11 +23,21 @@ const MESI = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Lug
 
 export default function Home() {
   const router = useRouter();
-  const { user, logout, refreshProfile } = useAuth();
+  const { user, logout, refreshProfile, loading: authLoading } = useAuth();
   const [now, setNow] = useState(new Date());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  useEffect(() => { refreshProfile(); }, []);
+  useEffect(() => { 
+    const loadProfile = async () => {
+      try {
+        await refreshProfile();
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60000);
@@ -69,6 +79,18 @@ export default function Home() {
 
   const dateStr = `${GIORNI[now.getDay()]} ${now.getDate()} ${MESI[now.getMonth()]} ${now.getFullYear()}`;
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+  // Show loading spinner while profile is loading
+  if (authLoading || profileLoading) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <View style={s.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.sky} />
+          <Text style={s.loadingText}>Caricamento...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.safe}>
@@ -192,6 +214,8 @@ export default function Home() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { padding: 16, paddingBottom: 32 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 16, color: Colors.textSec },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   logoImg: { width: 44, height: 44, marginRight: 10 },

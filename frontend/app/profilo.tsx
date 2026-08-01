@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,13 +10,39 @@ import { ScreenHeader, FormInput, PrimaryButton } from '../src/components/Shared
 
 export default function Profilo() {
   const router = useRouter();
-  const { user, token, refreshProfile, logout } = useAuth();
+  const { user, token, refreshProfile, loading: authLoading } = useAuth();
   const [form, setForm] = useState({
-    nome: user?.nome || '', cognome: user?.cognome || '',
-    telefono: user?.telefono || '', indirizzo: user?.indirizzo || '',
-    codice_fiscale: user?.codice_fiscale || '',
+    nome: '', cognome: '',
+    telefono: '', indirizzo: '',
+    codice_fiscale: '',
   });
   const [loading, setLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  // Initialize form when user data is available
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        await refreshProfile();
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  // Update form when user changes
+  useEffect(() => {
+    if (user) {
+      setForm({
+        nome: user.nome || '',
+        cognome: user.cognome || '',
+        telefono: user.telefono || '',
+        indirizzo: user.indirizzo || '',
+        codice_fiscale: user.codice_fiscale || '',
+      });
+    }
+  }, [user]);
 
   const update = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
@@ -32,6 +58,19 @@ export default function Profilo() {
       setLoading(false);
     }
   };
+
+  // Show loading spinner while profile is loading
+  if (authLoading || profileLoading) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <ScreenHeader title="Il mio Profilo" />
+        <View style={s.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.sky} />
+          <Text style={s.loadingText}>Caricamento profilo...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.safe}>
@@ -89,7 +128,7 @@ export default function Profilo() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.privacyTitle}>Privacy e Dati Personali</Text>
-              <Text style={s.privacySub}>Gestisci consensi, consulta l'informativa, esercita i tuoi diritti</Text>
+              <Text style={s.privacySub}>Gestisci consensi, consulta informativa, esercita i tuoi diritti</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
           </TouchableOpacity>
@@ -104,6 +143,8 @@ export default function Profilo() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   scroll: { padding: 16 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 16, color: Colors.textSec },
   avatarWrap: { alignItems: 'center', marginBottom: 20 },
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.navy, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   avatarText: { fontSize: 26, fontWeight: '700', color: Colors.white },
