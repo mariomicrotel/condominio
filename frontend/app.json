@@ -14,7 +14,8 @@
         "NSCameraUsageDescription": "Scatta foto per documentare guasti",
         "NSPhotoLibraryUsageDescription": "Seleziona foto e video da allegare",
         "NSMicrophoneUsageDescription": "Registra video per documentare guasti"
-      }
+      },
+      "bundleIdentifier": "com.emergent.backendrefactor.qft5u6"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +28,8 @@
         "READ_MEDIA_IMAGES",
         "READ_MEDIA_VIDEO",
         "READ_EXTERNAL_STORAGE"
-      ]
+      ],
+      "package": "com.emergent.backendrefactor.qft5u6"
     },
     "web": {
       "bundler": "metro",
@@ -46,7 +48,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-audio"
+      "expo-audio",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
