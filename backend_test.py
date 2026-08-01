@@ -6,6 +6,7 @@ Tests all user flows: Condomino, Admin, Fornitore, Collaboratore
 import requests
 import json
 import sys
+import time
 from typing import Dict, Any, Optional
 
 # Backend URL from environment
@@ -153,23 +154,23 @@ def test_flusso_condomino():
                         f"Status {status}: {data}")
     
     # Step 6: Create richiesta documenti
-    success, data, status = make_request("POST", "/richiesta-documenti", token=token, data={
+    success, data, status = make_request("POST", "/richieste-documenti", token=token, data={
         "condominio_id": condominio_id,
         "tipo_documento": "Estratto conto",
         "note": "Richiesta estratto conto anno 2025"
     })
     if success and "id" in data:
-        results.add_pass("6. POST /api/richiesta-documenti - Crea richiesta documenti")
+        results.add_pass("6. POST /api/richieste-documenti - Crea richiesta documenti")
     else:
-        results.add_fail("6. POST /api/richiesta-documenti - Crea richiesta documenti", 
+        results.add_fail("6. POST /api/richieste-documenti - Crea richiesta documenti", 
                         f"Status {status}: {data}")
     
     # Step 7: Get richieste documenti
-    success, data, status = make_request("GET", "/richiesta-documenti", token=token)
+    success, data, status = make_request("GET", "/richieste-documenti", token=token)
     if success and isinstance(data, list):
-        results.add_pass("7. GET /api/richiesta-documenti - Verifica lista richieste")
+        results.add_pass("7. GET /api/richieste-documenti - Verifica lista richieste")
     else:
-        results.add_fail("7. GET /api/richiesta-documenti - Verifica lista richieste", 
+        results.add_fail("7. GET /api/richieste-documenti - Verifica lista richieste", 
                         f"Status {status}: {data}")
     
     # Step 8: Create appuntamento
@@ -231,7 +232,7 @@ def test_flusso_admin(condomino_data):
     
     # Step 2: Get dashboard
     success, data, status = make_request("GET", "/admin/dashboard", token=admin_token)
-    if success and "stats" in data:
+    if success and isinstance(data, dict) and "totale_utenti" in data:
         results.add_pass("2. GET /api/admin/dashboard - Verifica dashboard stats")
     else:
         results.add_fail("2. GET /api/admin/dashboard - Verifica dashboard stats", 
@@ -391,8 +392,9 @@ def test_flusso_fornitore(admin_data, condomino_data):
         results.add_fail("FLUSSO 3 - Fornitore", "No admin token available")
         return None
     
-    # Step 1: Admin create fornitore
-    fornitore_email = "test.fornitore.regression@email.it"
+    # Step 1: Admin create fornitore with unique email
+    timestamp = int(time.time())
+    fornitore_email = f"test.fornitore.{timestamp}@email.it"
     fornitore_password = "Fornitore123!"
     success, data, status = make_request("POST", "/admin/fornitori", token=admin_token, data={
         "ragione_sociale": "Test Fornitore Regressione SRL",
@@ -452,7 +454,7 @@ def test_flusso_fornitore(admin_data, condomino_data):
     
     # Step 5: Get fornitore dashboard
     success, data, status = make_request("GET", "/fornitore/dashboard", token=fornitore_token)
-    if success and "stats" in data:
+    if success and isinstance(data, dict) and "totale" in data:
         results.add_pass("5. GET /api/fornitore/dashboard - Verifica dashboard fornitore")
     else:
         results.add_fail("5. GET /api/fornitore/dashboard - Verifica dashboard fornitore", 
@@ -513,8 +515,9 @@ def test_flusso_collaboratore(admin_data):
         results.add_fail("FLUSSO 4 - Collaboratore", "No admin token available")
         return None
     
-    # Step 1: Admin create collaboratore
-    collab_email = "test.collaboratore.regression@email.it"
+    # Step 1: Admin create collaboratore with unique email
+    timestamp = int(time.time())
+    collab_email = f"test.collaboratore.{timestamp}@email.it"
     collab_password = "Collab123!"
     success, data, status = make_request("POST", "/admin/collaboratori", token=admin_token, data={
         "nome": "Test",
@@ -547,8 +550,8 @@ def test_flusso_collaboratore(admin_data):
     # Step 3: Create sopralluogo
     success, data, status = make_request("POST", "/sopralluoghi", token=collab_token, data={
         "condominio_id": condominio_id,
-        "data_sopralluogo": "2026-03-25",
-        "note": "Sopralluogo di test regressione"
+        "data": "2026-03-25",
+        "note_generali": "Sopralluogo di test regressione"
     })
     if success and "id" in data:
         sopralluogo_id = data["id"]

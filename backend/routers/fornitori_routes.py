@@ -3,10 +3,31 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 import uuid
 
 from database import db, now_iso, clean_doc, create_notifica, add_timeline_event
-from auth import hash_pw, get_admin_user, get_fornitore_user
-from models import FornitoreCreate, AssegnaFornitoreCreate, RapportinoCreate
+from auth import hash_pw, verify_pw, create_token, get_admin_user, get_fornitore_user
+from models import FornitoreCreate, AssegnaFornitoreCreate, RapportinoCreate, UserLogin
 
 router = APIRouter()
+
+# ── Fornitore Login ───────────────────────────────────────────────────────────
+
+@router.post("/fornitore/login")
+async def fornitore_login(data: UserLogin):
+    """Login per fornitori - cerca nella collezione users con ruolo=fornitore"""
+    user = await db.users.find_one({"email": data.email, "ruolo": "fornitore"})
+    if not user or not verify_pw(data.password, user["password_hash"]):
+        raise HTTPException(401, "Credenziali errate")
+    if not user.get("abilitato", True):
+        raise HTTPException(403, "Account disabilitato")
+    token = create_token(user["id"], "fornitore")
+    user_data = {k: v for k, v in user.items() if k not in ("_id", "password_hash")}
+    user_data["ruolo"] = "fornitore"
+    # Aggiungi dati fornitore dalla collezione fornitori
+    forn = await db.fornitori.find_one({"user_id": user["id"]}, {"_id": 0})
+    if forn:
+        user_data["ragione_sociale"] = forn.get("ragione_sociale")
+        user_data["partita_iva"] = forn.get("partita_iva")
+        user_data["settori"] = forn.get("settori", [])
+    return {"token": token, "user": user_data}
 
 # ── Admin CRUD ────────────────────────────────────────────────────────────────
 
