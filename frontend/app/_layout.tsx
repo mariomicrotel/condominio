@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Modal, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, SplashScreen } from 'expo-router';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../src/constants/theme';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { OfflineBanner } from '../src/components/OfflineBanner';
+import * as Font from 'expo-font';
+
+// Keep splash screen visible while loading fonts
+SplashScreen.preventAutoHideAsync();
 
 function GdprUpdateModal() {
   const { gdprUpdateRequired, gdprUpdateInfo, confirmGdprUpdate, logout } = useAuth();
@@ -119,6 +123,47 @@ function AppLayout() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [fontError, setFontError] = useState<Error | null>(null);
+
+  // Load Ionicons font explicitly
+  useEffect(() => {
+    async function loadFonts() {
+      try {
+        await Font.loadAsync({
+          // Load Ionicons font explicitly
+          'Ionicons': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
+        });
+        setFontsLoaded(true);
+      } catch (error) {
+        console.error('Error loading fonts:', error);
+        setFontError(error as Error);
+        // Still allow app to render even if fonts fail
+        setFontsLoaded(true);
+      }
+    }
+    loadFonts();
+  }, []);
+
+  const onLayoutRootView = useCallback(async () => {
+    if (fontsLoaded) {
+      await SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  useEffect(() => {
+    onLayoutRootView();
+  }, [onLayoutRootView]);
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.bg }}>
+        <ActivityIndicator size="large" color={Colors.sky} />
+        <Text style={{ marginTop: 12, color: Colors.textSec }}>Caricamento...</Text>
+      </View>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <AuthProvider>
