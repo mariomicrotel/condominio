@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Modal, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { Stack, SplashScreen } from 'expo-router';
+import { Stack, SplashScreen, useRouter, usePathname } from 'expo-router';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -112,6 +112,28 @@ function GdprUpdateModal() {
 }
 
 function AppLayout() {
+  const { token, userRole, loading } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Auto-redirect after Google OAuth login
+  useEffect(() => {
+    if (loading) return;
+    
+    // If user is authenticated and on login/register page, redirect to appropriate page
+    const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/';
+    
+    if (token && isAuthPage) {
+      if (userRole === 'admin') {
+        router.replace('/admin');
+      } else if (userRole === 'fornitore') {
+        router.replace('/fornitore-dashboard');
+      } else {
+        router.replace('/home');
+      }
+    }
+  }, [token, userRole, loading, pathname, router]);
+
   return (
     <>
       <StatusBar style="dark" />

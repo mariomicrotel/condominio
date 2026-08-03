@@ -9,10 +9,11 @@ import { Colors } from '../src/constants/theme';
 
 export default function Login() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
 
   const handleLogin = async () => {
@@ -36,6 +37,18 @@ export default function Login() {
       Alert.alert('Errore', e.message || 'Credenziali non valide');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      await loginWithGoogle();
+      // Navigation will happen automatically after successful auth
+    } catch (e: any) {
+      Alert.alert('Errore', e.message || 'Login con Google fallito');
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -70,6 +83,23 @@ export default function Login() {
               {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={s.loginBtnText}>Accedi</Text>}
             </TouchableOpacity>
 
+            <View style={s.divider}>
+              <View style={s.dividerLine} />
+              <Text style={s.dividerText}>oppure</Text>
+              <View style={s.dividerLine} />
+            </View>
+
+            <TouchableOpacity testID="google-login-btn" style={s.googleBtn} onPress={handleGoogleLogin} disabled={googleLoading} activeOpacity={0.8}>
+              {googleLoading ? (
+                <ActivityIndicator color={Colors.textMain} />
+              ) : (
+                <>
+                  <Image source={require('../assets/images/google-icon.png')} style={s.googleIcon} />
+                  <Text style={s.googleBtnText}>Accedi con Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
             <TouchableOpacity testID="go-register-btn" style={s.regBtn} onPress={() => router.push('/register')}>
               <Text style={s.regText}>Non hai un account? <Text style={s.regLink}>Registrati</Text></Text>
             </TouchableOpacity>
@@ -97,6 +127,12 @@ const s = StyleSheet.create({
   input: { flex: 1, fontSize: 16, color: Colors.textMain },
   loginBtn: { height: 56, borderRadius: 12, backgroundColor: Colors.navy, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   loginBtnText: { fontSize: 16, fontWeight: '600', color: Colors.white },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  dividerText: { marginHorizontal: 16, color: Colors.textMuted, fontSize: 14 },
+  googleBtn: { height: 56, borderRadius: 12, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' },
+  googleIcon: { width: 24, height: 24, marginRight: 12 },
+  googleBtnText: { fontSize: 16, fontWeight: '600', color: Colors.textMain },
   regBtn: { marginTop: 20, alignItems: 'center' },
   regText: { fontSize: 14, color: Colors.textSec },
   regLink: { color: Colors.sky, fontWeight: '600' },

@@ -1,12 +1,146 @@
-"""Auth routes: login, register, profile."""
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+"""Auth routes: login, register, profile, Google OAuth."""
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, Header
+from pydantic import BaseModel
+from datetime import datetime, timezone, timedelta
 import uuid
+import httpx
 
 from database import db, now_iso
 from auth import hash_pw, verify_pw, create_token, get_current_user
 from models import UserCreate, UserLogin, UserUpdate
 
 router = APIRouter()
+
+# ── Google OAuth Models ───────────────────────────────────────────────────────
+
+class SessionRequest(BaseModel):
+    session_id: str
+
+# ── Google OAuth Endpoints ────────────────────────────────────────────────────
+
+@router.post("/auth/session")
+async def exchange_session(data: SessionRequest):
+    """Exchange Emergent session_id for app session_token"""
+    try:
+        # Call Emergent API to get user data
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": data.session_id},
+                timeout=10.0
+            )
+        
+        if response.status_code != 200:
+            raise HTTPException(401, "Invalid or expired session_id")
+        
+        emergent_data = response.json()
+        email = emergent_data.get("email")
+        name = emergent_data.get("name", "")
+        picture = emergent_data.get("picture", "")
+        
+        if not email:
+            raise HTTPException(401, "No email returned from OAuth")
+        
+        # Split name into nome/cognome
+        name_parts = name.split(" ", 1) if name else ["", ""]
+        nome = name_parts[0]
+        cognome = name_parts[1] if len(name_parts) > 1 else ""
+        
+        # Upsert user by email (don't create duplicates)
+        existing_user = await db.users.find_one({"email": email})
+        
+        if existing_user:
+            user_id = existing_user["id"]
+            # Update profile picture if changed
+            if picture and existing_user.get("picture") != picture:
+                await db.users.update_one({"id": user_id}, {"$set": {"picture": picture}})
+        else:
+            # Create new user
+            user_id = f"user_{uuid.uuid4().hex[:12]}"
+            new_user = {
+                "id": user_id,
+                "email": email,
+                "nome": nome,
+                "cognome": cognome,
+                "picture": picture,
+                "password_hash": "",  # No password for OAuth users
+                "ruolo": "condomino",
+                "auth_provider": "google",
+                "created_at": now_iso()
+            }
+            await db.users.insert_one(new_user)
+        
+        # Create session
+        session_token = f"sess_{uuid.uuid4().hex}"
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        
+        await db.user_sessions.insert_one({
+            "session_token": session_token,
+            "user_id": user_id,
+            "created_at": datetime.now(timezone.utc),
+            "expires_at": expires_at
+        })
+        
+        # Get full user data
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+        
+        return {
+            "session_token": session_token,
+            "user": user
+        }
+        
+    except httpx.RequestError as e:
+        raise HTTPException(500, f"Failed to verify session: {str(e)}")
+
+@router.get("/auth/me")
+async def get_me(authorization: str = Header(None)):
+    """Get current user from session token"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Missing or invalid authorization header")
+    
+    token = authorization.replace("Bearer ", "")
+    
+    # Look up session
+    session = await db.user_sessions.find_one({"session_token": token})
+    if not session:
+        raise HTTPException(401, "Invalid session")
+    
+    # Check expiry - normalize to timezone-aware
+    expires_at = session.get("expires_at")
+    if expires_at:
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > expires_at:
+            raise HTTPException(401, "Session expired")
+    
+    # Get user
+    user = await db.users.find_one({"id": session["user_id"]}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(401, "User not found")
+    
+    # Add condomini
+    assocs = await db.user_condomini.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+    user["condomini"] = []
+    for a in assocs:
+        c = await db.condomini.find_one({"id": a["condominio_id"]}, {"_id": 0})
+        user["condomini"].append({
+            "id": a["condominio_id"],
+            "nome": c["nome"] if c else "N/A",
+            "unita_immobiliare": a.get("unita_immobiliare", ""),
+            "qualita": a.get("qualita", "")
+        })
+    
+    return user
+
+@router.post("/auth/logout")
+async def logout_session(authorization: str = Header(None)):
+    """Invalidate session token"""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+        await db.user_sessions.delete_one({"session_token": token})
+    return {"message": "Logged out"}
+
+# ── Standard Auth Endpoints ───────────────────────────────────────────────────
 
 
 @router.post("/auth/register")

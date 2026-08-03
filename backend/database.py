@@ -80,3 +80,19 @@ async def add_timeline_event(segnalazione_id, evento, attore_id, attore_ruolo, d
         "evento": evento, "attore_id": attore_id, "attore_ruolo": attore_ruolo,
         "dettagli": dettagli or {}, "created_at": now_iso()
     })
+
+async def create_indexes():
+    """Create MongoDB indexes for optimal performance"""
+    try:
+        # User indexes
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("id", unique=True)
+        
+        # Session indexes
+        await db.user_sessions.create_index("session_token", unique=True)
+        await db.user_sessions.create_index("user_id")
+        await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)  # TTL index
+        
+        logger.info("MongoDB indexes created successfully")
+    except Exception as e:
+        logger.warning(f"Index creation warning: {e}")

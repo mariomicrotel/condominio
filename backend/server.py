@@ -45,23 +45,17 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         content={"detail": "Troppi tentativi. Riprova tra qualche minuto."}
     )
 
-# CORS: restrict to known origins (allow frontend preview + localhost dev)
+# CORS: allow all origins for mobile apps (they don't send Origin header)
+# Web frontend preview + localhost dev explicitly listed
 ALLOWED_ORIGINS = [
-    os.environ.get("FRONTEND_URL", "https://backend-refactor-86.preview.emergentagent.com"),
-    "http://localhost:3000",
-    "http://localhost:8081",
-    "http://localhost:19006",
+    "*",  # Allow all for mobile apps
 ]
-# Also allow the EXPO_PUBLIC_BACKEND_URL if set (same domain)
-backend_url = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "")
-if backend_url and backend_url not in ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS.append(backend_url)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS, allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Session-ID"],
 )
 
 api = APIRouter(prefix="/api")
@@ -158,7 +152,12 @@ app.include_router(api)
 
 @app.on_event("startup")
 async def on_startup():
-    """Ensure privacy policy v1.0 exists."""
+    """Initialize indexes and ensure privacy policy v1.0 exists."""
+    # Create MongoDB indexes
+    from database import create_indexes
+    await create_indexes()
+    
+    # Ensure privacy policy v1.0 exists
     existing = await db.informativa_versioni.find_one({"versione": "1.0"})
     if not existing:
         admin = await db.users.find_one({"ruolo": "admin"}, {"id": 1})
