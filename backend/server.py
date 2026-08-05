@@ -32,7 +32,14 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 # ── App & Router ──────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Studio Tardugno & Bonifacio API", version="2.1.0")
+# Disable public API documentation in production
+app = FastAPI(
+    title="Studio Tardugno & Bonifacio API",
+    version="2.1.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None
+)
 
 # Rate limiting
 app.state.limiter = limiter
