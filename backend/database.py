@@ -16,8 +16,13 @@ db = client[os.environ.get('DB_NAME', 'studio_tardugno')]
 logger = logging.getLogger(__name__)
 
 # ── File uploads ──────────────────────────────────────────────────────────────
-UPLOAD_DIR = ROOT_DIR / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR = Path(
+    os.environ.get(
+        "UPLOAD_DIR",
+        str(ROOT_DIR / "uploads")
+    )
+)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_TYPES = {
     'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
