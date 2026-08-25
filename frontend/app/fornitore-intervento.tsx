@@ -142,7 +142,7 @@ export default function FornitoreIntervento() {
                 <Text style={st.subLabel}>Foto del condomino ({intervento.allegati_dettagli.length}):</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
                   {intervento.allegati_dettagli.map((f: any, i: number) => (
-                    <Image key={i} source={{ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}${f.url}` }} style={st.thumbImg} />
+                    <Image key={i} source={api.getFileSource(token!, f.id, f.filename)} style={st.thumbImg} />
                   ))}
                 </ScrollView>
               </View>

@@ -144,8 +144,39 @@ export const api = {
     return res.json();
   },
 
-  // File URL helper
+  // File URL helper (DEPRECATED for direct use — endpoint now requires auth).
+  // Prefer `getFileSource(token, ...)` for <Image>, and `downloadFileBlobUrl(token, ...)`
+  // when opening/downloading through a browser (needs Authorization header).
   getFileUrl: (fileId: string, filename: string) => `${BACKEND_URL}/api/files/${fileId}/${encodeURIComponent(filename)}`,
+
+  /**
+   * Build a React-Native `<Image source>` object that carries the JWT so
+   * the request is authorised at the server.  Works on both native RN and
+   * react-native-web (which forwards the headers to fetch).
+   */
+  getFileSource: (token: string, fileId: string, filename: string) => ({
+    uri: `${BACKEND_URL}/api/files/${fileId}/${encodeURIComponent(filename)}`,
+    headers: { Authorization: `Bearer ${token}` },
+  }),
+
+  /**
+   * Authenticated fetch of a file. Returns an object URL (blob:) suitable
+   * for `new Audio(...)`, `window.open(...)`, `<a href>`, or `Linking.openURL`
+   * on web. On native use `fetchFileAuthenticated` and expo-file-system.
+   */
+  downloadFileBlobUrl: async (token: string, fileId: string, filename: string): Promise<string> => {
+    const res = await fetch(
+      `${BACKEND_URL}/api/files/${fileId}/${encodeURIComponent(filename)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) {
+      if ((res.status === 401 || res.status === 403) && onTokenExpired) onTokenExpired();
+      const err = await res.json().catch(() => ({ detail: `Errore ${res.status}` }));
+      throw new Error(err.detail || 'Impossibile scaricare il file');
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
 
   // ===== FORNITORI =====
   // Admin

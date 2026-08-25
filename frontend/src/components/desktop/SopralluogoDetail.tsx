@@ -34,34 +34,64 @@ const STATO_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 // ─── AudioPlayer Component (Web) ─────────────────────────────────────────────
-function AudioPlayer({ fileUrl, label }: { fileUrl: string; label: string }) {
+// Authenticated file fetch: downloads through Bearer token, then serves as blob URL
+function AudioPlayer({ fileId, filename, token, label }: { fileId: string; filename: string; token: string; label: string }) {
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const audio = new Audio(fileUrl);
+    let cancelled = false;
+    let currentUrl: string | null = null;
+    (async () => {
+      try {
+        const url = await api.downloadFileBlobUrl(token, fileId, filename);
+        if (cancelled) {
+          // eslint-disable-next-line no-undef
+          URL.revokeObjectURL(url);
+          return;
+        }
+        currentUrl = url;
+        setBlobUrl(url);
+      } catch (e) {
+        console.warn('[AudioPlayer] fetch failed:', e);
+        setLoadError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      // eslint-disable-next-line no-undef
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [fileId, filename, token]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !blobUrl) return;
+    const audio = new Audio(blobUrl);
     audioRef.current = audio;
     audio.addEventListener('loadedmetadata', () => setDuration(audio.duration));
     audio.addEventListener('timeupdate', () => setCurrentTime(audio.currentTime));
     audio.addEventListener('ended', () => { setPlaying(false); setCurrentTime(0); });
-    return () => { audio.pause(); audio.src = ''; };
-  }, [fileUrl]);
+    return () => { audio.pause(); audio.src = ''; audioRef.current = null; };
+  }, [blobUrl]);
 
   const togglePlay = () => {
-    if (!audioRef.current) {
-      // Fallback: open in browser
-      Linking.openURL(fileUrl);
-      return;
-    }
-    if (playing) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
+    if (!audioRef.current) return;
+    if (playing) audioRef.current.pause();
+    else audioRef.current.play();
     setPlaying(!playing);
+  };
+
+  const openInNewTab = () => {
+    if (blobUrl && Platform.OS === 'web') {
+      // eslint-disable-next-line no-undef
+      window.open(blobUrl, '_blank');
+    } else if (blobUrl) {
+      Linking.openURL(blobUrl);
+    }
   };
 
   const fmtTime = (s: number) => {
@@ -74,17 +104,17 @@ function AudioPlayer({ fileUrl, label }: { fileUrl: string; label: string }) {
 
   return (
     <View style={ap.wrap}>
-      <TouchableOpacity onPress={togglePlay} style={ap.playBtn} activeOpacity={0.7}>
+      <TouchableOpacity onPress={togglePlay} disabled={!blobUrl || loadError} style={ap.playBtn} activeOpacity={0.7}>
         <Ionicons name={playing ? 'pause' : 'play'} size={16} color={Colors.white} />
       </TouchableOpacity>
       <View style={ap.info}>
-        <Text style={ap.label} numberOfLines={1}>{label}</Text>
+        <Text style={ap.label} numberOfLines={1}>{label}{loadError ? ' — errore' : ''}</Text>
         <View style={ap.progressBar}>
           <View style={[ap.progressFill, { width: `${progress}%` }]} />
         </View>
         <Text style={ap.time}>{fmtTime(currentTime)} / {fmtTime(duration)}</Text>
       </View>
-      <TouchableOpacity onPress={() => Linking.openURL(fileUrl)} style={ap.dlBtn}>
+      <TouchableOpacity onPress={openInNewTab} disabled={!blobUrl} style={ap.dlBtn}>
         <Ionicons name="download-outline" size={14} color={Colors.textSec} />
       </TouchableOpacity>
     </View>
@@ -102,20 +132,33 @@ const ap = StyleSheet.create({
 });
 
 // ─── PhotoGallery Component ───────────────────────────────────────────────────
-function PhotoGallery({ photos, captions }: { photos: any[]; captions?: string[] }) {
+function PhotoGallery({ photos, captions, token }: { photos: any[]; captions?: string[]; token: string }) {
   const [lightbox, setLightbox] = useState<number | null>(null);
 
   if (!photos || photos.length === 0) return null;
+
+  const openOriginal = async (photo: any) => {
+    try {
+      const url = await api.downloadFileBlobUrl(token, photo.id, photo.filename);
+      if (Platform.OS === 'web') {
+        // eslint-disable-next-line no-undef
+        window.open(url, '_blank');
+      } else {
+        Linking.openURL(url);
+      }
+    } catch (e) {
+      console.warn('[PhotoGallery] download failed:', e);
+    }
+  };
 
   return (
     <View>
       <View style={pg.grid}>
         {photos.map((photo, idx) => {
-          const fileUrl = api.getFileUrl(photo.id, photo.filename);
           const caption = captions?.[idx] || '';
           return (
             <TouchableOpacity key={photo.id} style={pg.thumb} activeOpacity={0.8} onPress={() => setLightbox(idx)}>
-              <Image source={{ uri: fileUrl }} style={pg.thumbImg} resizeMode="cover" />
+              <Image source={api.getFileSource(token, photo.id, photo.filename)} style={pg.thumbImg} resizeMode="cover" />
               {caption ? (
                 <View style={pg.captionWrap}>
                   <Text style={pg.captionText} numberOfLines={2}>{caption}</Text>
@@ -138,7 +181,7 @@ function PhotoGallery({ photos, captions }: { photos: any[]; captions?: string[]
               <Ionicons name="close" size={24} color={Colors.white} />
             </TouchableOpacity>
             <Image
-              source={{ uri: api.getFileUrl(photos[lightbox].id, photos[lightbox].filename) }}
+              source={api.getFileSource(token, photos[lightbox].id, photos[lightbox].filename)}
               style={pg.lightboxImg}
               resizeMode="contain"
             />
@@ -158,10 +201,7 @@ function PhotoGallery({ photos, captions }: { photos: any[]; captions?: string[]
                 </TouchableOpacity>
               )}
             </View>
-            <TouchableOpacity
-              style={pg.dlBtn}
-              onPress={() => Linking.openURL(api.getFileUrl(photos[lightbox].id, photos[lightbox].filename))}
-            >
+            <TouchableOpacity style={pg.dlBtn} onPress={() => openOriginal(photos[lightbox])}>
               <Ionicons name="download-outline" size={14} color={Colors.white} />
               <Text style={pg.dlText}>Scarica originale</Text>
             </TouchableOpacity>
@@ -192,7 +232,7 @@ const pg = StyleSheet.create({
 });
 
 // ─── AnomaliaCard Component ───────────────────────────────────────────────────
-function AnomaliaCard({ anomalia, voce }: { anomalia: any; voce: string }) {
+function AnomaliaCard({ anomalia, voce, token }: { anomalia: any; voce: string; token: string }) {
   const grav = GRAVITA_COLORS[anomalia.gravita] || GRAVITA_COLORS['Moderata'];
 
   return (
@@ -227,7 +267,7 @@ function AnomaliaCard({ anomalia, voce }: { anomalia: any; voce: string }) {
             <Ionicons name="camera-outline" size={14} color={Colors.textSec} />
             <Text style={ac.sectionLabel}>{anomalia.foto_dettagli.length} foto</Text>
           </View>
-          <PhotoGallery photos={anomalia.foto_dettagli} captions={anomalia.foto_didascalie} />
+          <PhotoGallery photos={anomalia.foto_dettagli} captions={anomalia.foto_didascalie} token={token} />
         </View>
       )}
 
@@ -241,7 +281,9 @@ function AnomaliaCard({ anomalia, voce }: { anomalia: any; voce: string }) {
           {anomalia.nota_vocale_dettagli.map((vn: any, idx: number) => (
             <View key={vn.id} style={{ marginBottom: idx < anomalia.nota_vocale_dettagli.length - 1 ? 8 : 0 }}>
               <AudioPlayer
-                fileUrl={api.getFileUrl(vn.id, vn.filename)}
+                fileId={vn.id}
+                filename={vn.filename}
+                token={token}
                 label={`Nota vocale ${idx + 1}`}
               />
             </View>
@@ -400,7 +442,9 @@ export default function SopralluogoDetail({ sopralluogoId, token, condominiMap =
           {data.nota_vocale_generale_dettagli && (
             <View style={{ marginTop: 8 }}>
               <AudioPlayer
-                fileUrl={api.getFileUrl(data.nota_vocale_generale_dettagli.id, data.nota_vocale_generale_dettagli.filename)}
+                fileId={data.nota_vocale_generale_dettagli.id}
+                filename={data.nota_vocale_generale_dettagli.filename}
+                token={token}
                 label="Nota vocale generale"
               />
             </View>
@@ -435,7 +479,7 @@ export default function SopralluogoDetail({ sopralluogoId, token, condominiMap =
             <View style={{ marginBottom: 16 }}>
               <Text style={s.sectionTitle}>Anomalie rilevate</Text>
               {anomalieItems.map((item: any) => (
-                <AnomaliaCard key={item.id} anomalia={item.anomalia} voce={item.voce} />
+                <AnomaliaCard key={item.id} anomalia={item.anomalia} voce={item.voce} token={token} />
               ))}
             </View>
           ) : (
@@ -502,7 +546,7 @@ export default function SopralluogoDetail({ sopralluogoId, token, condominiMap =
         <View>
           {anomalieItems.length > 0 ? (
             anomalieItems.map((item: any) => (
-              <AnomaliaCard key={item.id} anomalia={item.anomalia} voce={item.voce} />
+              <AnomaliaCard key={item.id} anomalia={item.anomalia} voce={item.voce} token={token} />
             ))
           ) : (
             <View style={s.emptyBox}>
@@ -523,7 +567,9 @@ export default function SopralluogoDetail({ sopralluogoId, token, condominiMap =
           {data.nota_vocale_finale_dettagli && (
             <View style={{ marginTop: 8 }}>
               <AudioPlayer
-                fileUrl={api.getFileUrl(data.nota_vocale_finale_dettagli.id, data.nota_vocale_finale_dettagli.filename)}
+                fileId={data.nota_vocale_finale_dettagli.id}
+                filename={data.nota_vocale_finale_dettagli.filename}
+                token={token}
                 label="Nota vocale finale"
               />
             </View>

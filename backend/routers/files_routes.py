@@ -1,10 +1,23 @@
-"""Files routes: upload, download."""
+"""Files routes: upload, download.
+
+The download endpoint (``GET /api/files/{file_id}/{filename}``) is
+authenticated *and* authorised: authentication proves the caller, and
+:func:`auth.can_access_file` proves the caller is allowed to see that
+specific file.  See ``auth.can_access_file`` for the ACL matrix.
+
+Never expose file URLs without going through this router.
+"""
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 import uuid, os
 
 from database import db, now_iso, UPLOAD_DIR, MAX_FILE_SIZE, ALLOWED_TYPES
-from auth import get_current_user, get_admin_or_collaboratore
+from auth import (
+    get_current_user,
+    get_admin_or_collaboratore,
+    get_any_authenticated_user,
+    can_access_file,
+)
 
 router = APIRouter()
 
@@ -56,11 +69,23 @@ async def upload_sopralluogo_file(file: UploadFile = File(...), user=Depends(get
 
 
 @router.get("/files/{file_id}/{filename}")
-async def get_file(file_id: str, filename: str):
-    file_doc = await db.uploaded_files.find_one({"id": file_id})
-    if not file_doc:
+async def get_file(file_id: str, filename: str, user=Depends(get_any_authenticated_user)):
+    """Authenticated + authorised file download.
+
+    * 401 → missing/invalid token (handled by dependency).
+    * 404 → file id unknown, or file missing on disk.
+    * 403 → authenticated but not authorised for this file.
+    """
+    allowed, file_doc = await can_access_file(user, file_id)
+    if file_doc is None:
         raise HTTPException(404, "File non trovato")
+    if not allowed:
+        raise HTTPException(403, "Accesso al file non consentito")
     file_path = UPLOAD_DIR / file_doc["filename"]
     if not file_path.exists():
         raise HTTPException(404, "File non trovato su disco")
-    return FileResponse(str(file_path), media_type=file_doc.get("content_type", "application/octet-stream"), filename=file_doc.get("original_name", filename))
+    return FileResponse(
+        str(file_path),
+        media_type=file_doc.get("content_type", "application/octet-stream"),
+        filename=file_doc.get("original_name", filename),
+    )

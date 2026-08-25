@@ -79,3 +79,142 @@ async def get_admin_or_collaboratore(credentials: HTTPAuthorizationCredentials =
             user["_tipo"] = "collaboratore"
             return user
     raise HTTPException(403, "Accesso negato")
+
+
+async def get_any_authenticated_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """
+    Accept any authenticated principal (condomino, admin, fornitore, collaboratore).
+
+    Normalises the returned dict with:
+      - user['id']
+      - user['ruolo']       (admin | condomino | fornitore | collaboratore)
+      - user['_tipo']       (same as ruolo, kept for legacy call-sites)
+    Raises 401 if the token cannot be validated to a real principal.
+    """
+    payload = decode_token(credentials.credentials)
+    user_id = payload.get("user_id")
+    ruolo = payload.get("ruolo", "")
+
+    if ruolo == "collaboratore":
+        user = await db.collaboratori.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(401, "Utente non trovato")
+        if user.get("stato") != "Attivo":
+            raise HTTPException(403, "Account sospeso")
+        user["ruolo"] = "collaboratore"
+        user["_tipo"] = "collaboratore"
+        return user
+
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(401, "Utente non trovato")
+
+    # If the JWT was minted with a role, trust it, but fall back to the DB one.
+    resolved_ruolo = ruolo or user.get("ruolo") or "condomino"
+    user["ruolo"] = resolved_ruolo
+    user["_tipo"] = resolved_ruolo
+    return user
+
+
+# ── File Access Authorisation ────────────────────────────────────────────────
+
+async def can_access_file(user: dict, file_id: str):
+    """
+    Centralised authorisation helper for uploaded files.
+
+    Rules (deny by default):
+      • admin                → all files
+      • uploader             → their own uploads
+      • condomino            → files referenced by their own segnalazioni.allegati
+                               (immagini or allegati arrays)
+      • fornitore            → files referenced by segnalazioni assigned to them
+                               (via fornitore_segnalazioni) or by their rapportini
+      • collaboratore        → files referenced by sopralluoghi they perform
+                               (nota_vocale_generale/finale) or by anomalie of
+                               those sopralluoghi (foto_ids, nota_vocale_ids,
+                               nota_vocale_id)
+
+    Returns tuple (allowed: bool, file_doc: dict | None).
+    Callers must translate a missing file_doc into 404 and a False `allowed`
+    on an existing file_doc into 403.
+    """
+    if not file_id:
+        return False, None
+
+    file_doc = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    if not file_doc:
+        return False, None
+
+    ruolo = user.get("ruolo") or user.get("_tipo") or ""
+    user_id = user.get("id")
+    if not user_id:
+        return False, file_doc
+
+    # 1) Admin always allowed
+    if ruolo == "admin":
+        return True, file_doc
+
+    # 2) Uploader always allowed
+    if file_doc.get("uploaded_by") == user_id:
+        return True, file_doc
+
+    # 3) Fornitore: only files linked to segnalazioni assigned to them
+    if ruolo == "fornitore":
+        # segnalazioni.allegati or immagini containing this file
+        seg_ids = await db.segnalazioni.distinct(
+            "id",
+            {"$or": [{"allegati": file_id}, {"immagini": file_id}]},
+        )
+        if seg_ids:
+            assigned = await db.fornitore_segnalazioni.find_one({
+                "segnalazione_id": {"$in": seg_ids},
+                "fornitore_id": user_id,
+            })
+            if assigned:
+                return True, file_doc
+        # rapportini foto
+        rap = await db.rapportini.find_one({
+            "fornitore_id": user_id,
+            "foto.file_id": file_id,
+        })
+        if rap:
+            return True, file_doc
+        return False, file_doc
+
+    # 4) Collaboratore: files linked to their sopralluoghi
+    if ruolo == "collaboratore":
+        sop = await db.sopralluoghi.find_one({
+            "collaboratore_id": user_id,
+            "$or": [
+                {"nota_vocale_generale_id": file_id},
+                {"nota_vocale_finale_id": file_id},
+            ],
+        })
+        if sop:
+            return True, file_doc
+        anomalia = await db.sopralluoghi_anomalie.find_one({
+            "$or": [
+                {"foto_ids": file_id},
+                {"nota_vocale_ids": file_id},
+                {"nota_vocale_id": file_id},
+            ],
+        })
+        if anomalia:
+            sop_owned = await db.sopralluoghi.find_one({
+                "id": anomalia.get("sopralluogo_id"),
+                "collaboratore_id": user_id,
+            })
+            if sop_owned:
+                return True, file_doc
+        return False, file_doc
+
+    # 5) Condomino (or generic user): only files in their own resources
+    #    (segnalazioni.allegati or segnalazioni.immagini they own)
+    seg = await db.segnalazioni.find_one({
+        "user_id": user_id,
+        "$or": [{"allegati": file_id}, {"immagini": file_id}],
+    })
+    if seg:
+        return True, file_doc
+
+    return False, file_doc

@@ -44,9 +44,19 @@ export default function SegnalazioniTab({ token, segnalazioni, condomini, fornit
     catch { const item = segnalazioni.find(ss => ss.id === segId); if (item) setModalSeg(item); }
   };
 
-  const openFile = (fileUrl: string) => {
-    const { Linking } = require('react-native');
-    Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}${fileUrl}`).catch(() => Alert.alert('Errore', 'Impossibile aprire il file'));
+  const openFile = async (file: any) => {
+    try {
+      const { Platform, Linking } = require('react-native');
+      const url = await api.downloadFileBlobUrl(token, file.id, file.filename);
+      if (Platform.OS === 'web') {
+        // eslint-disable-next-line no-undef
+        window.open(url, '_blank');
+      } else {
+        Linking.openURL(url);
+      }
+    } catch (e: any) {
+      Alert.alert('Errore', e.message || 'Impossibile aprire il file');
+    }
   };
 
   const updateSeg = async (id: string, stato: string) => {
@@ -58,7 +68,14 @@ export default function SegnalazioniTab({ token, segnalazioni, condomini, fornit
     setIsEditingSeg(true); setEditingSegId(seg.id);
     setSegForm({ condominio_id: seg.condominio_id || '', tipologia: seg.tipologia || '', descrizione: seg.descrizione || '', urgenza: seg.urgenza || 'Media', note_admin: seg.note_admin || '' });
     if (seg.allegati_dettagli?.length > 0) {
-      setSegMediaFiles(seg.allegati_dettagli.map((f: any) => ({ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}${f.url}`, filename: f.filename, mimeType: f.content_type, size: f.size, type: f.content_type?.startsWith('image/') ? 'image' : f.content_type?.startsWith('video/') ? 'video' : 'pdf', uploadedId: f.id })));
+      setSegMediaFiles(seg.allegati_dettagli.map((f: any) => ({
+        uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/files/${f.id}/${encodeURIComponent(f.filename)}`,
+        filename: f.filename,
+        mimeType: f.content_type,
+        size: f.size,
+        type: f.content_type?.startsWith('image/') ? 'image' : f.content_type?.startsWith('video/') ? 'video' : 'pdf',
+        uploadedId: f.id,
+      })));
     } else { setSegMediaFiles([]); }
     setModalSeg(null); setShowNewSegModal(true);
   };
@@ -164,8 +181,8 @@ export default function SegnalazioniTab({ token, segnalazioni, condomini, fornit
                 {modalSeg.allegati_dettagli.map((file: any, idx: number) => {
                   const isImage = file.content_type?.startsWith('image/');
                   return (
-                    <TouchableOpacity key={idx} onPress={() => openFile(file.url)} style={s.attachRow}>
-                      {isImage ? <Image source={{ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}${file.url}` }} style={s.attachThumb} /> : <View style={[s.attachIcon, { backgroundColor: file.content_type === 'application/pdf' ? '#FEE2E2' : '#F3E8FF' }]}><Ionicons name={file.content_type === 'application/pdf' ? 'document-text' : 'videocam'} size={20} color={file.content_type === 'application/pdf' ? '#DC2626' : '#7C3AED'} /></View>}
+                    <TouchableOpacity key={idx} onPress={() => openFile(file)} style={s.attachRow}>
+                      {isImage ? <Image source={api.getFileSource(token, file.id, file.filename)} style={s.attachThumb} /> : <View style={[s.attachIcon, { backgroundColor: file.content_type === 'application/pdf' ? '#FEE2E2' : '#F3E8FF' }]}><Ionicons name={file.content_type === 'application/pdf' ? 'document-text' : 'videocam'} size={20} color={file.content_type === 'application/pdf' ? '#DC2626' : '#7C3AED'} /></View>}
                       <View style={{ flex: 1, marginLeft: 10 }}><Text style={{ fontSize: 13, fontWeight: '500', color: Colors.textMain }} numberOfLines={1}>{file.filename}</Text><Text style={{ fontSize: 11, color: Colors.textMuted }}>{file.content_type} • {file.size ? `${(file.size / 1024).toFixed(0)} KB` : ''}</Text></View>
                       <Ionicons name="open-outline" size={18} color={Colors.sky} />
                     </TouchableOpacity>

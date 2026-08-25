@@ -277,13 +277,13 @@ export default function SopralluoghiTab({ token, sopralluoghi, condomini, collab
                 <View style={{ marginTop: 10, padding: 10, backgroundColor: '#FEF3C7', borderRadius: 8 }}>
                   <Text style={{ fontSize: 12, fontWeight: '600', color: '#92400E' }}>Anomalia: {item.anomalia.gravita}</Text>
                   <Text style={{ fontSize: 12, color: '#78350F', marginTop: 2 }}>{item.anomalia.descrizione}</Text>
-                  {item.anomalia.foto_dettagli?.length > 0 && <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>{item.anomalia.foto_dettagli.map((f: any, idx: number) => <Image key={idx} source={{ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}${f.url}` }} style={{ width: 50, height: 50, borderRadius: 6 }} />)}</View>}
+                  {item.anomalia.foto_dettagli?.length > 0 && <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>{item.anomalia.foto_dettagli.map((f: any, idx: number) => <Image key={idx} source={api.getFileSource(token, f.id, f.filename)} style={{ width: 50, height: 50, borderRadius: 6 }} />)}</View>}
                   {item.anomalia.segnalazione_protocollo && <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}><Ionicons name="warning" size={14} color="#DC2626" /><Text style={{ fontSize: 11, color: '#DC2626', fontWeight: '600' }}>Segnalazione: {item.anomalia.segnalazione_protocollo}</Text></View>}
                   {showSopralluogoDetail?.stato === 'in_corso' && (
                     <TouchableOpacity onPress={() => {
                       const sopData = { ...showSopralluogoDetail }; const itemData = { ...item };
                       const formData = { descrizione: item.anomalia.descrizione || '', gravita: item.anomalia.gravita || 'Moderata', foto_ids: item.anomalia.foto_ids || [], apri_segnalazione: false, fornitore_id: '', tipologia_intervento: '', urgenza_segnalazione: '', note_fornitore: '' };
-                      const photoData = item.anomalia.foto_dettagli?.map((f: any) => ({ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}${f.url}`, filename: f.filename, mimeType: f.content_type, type: 'image' as const, uploadedId: f.id })) || [];
+                      const photoData = item.anomalia.foto_dettagli?.map((f: any) => ({ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/files/${f.id}/${encodeURIComponent(f.filename)}`, filename: f.filename, mimeType: f.content_type, type: 'image' as const, uploadedId: f.id })) || [];
                       setShowSopralluogoDetail(null); setAnomaliaError(null);
                       setTimeout(() => { setShowAnomaliaModal({ sopralluogo: sopData, item: itemData, isNew: false }); setAnomaliaForm(formData); setAnomaliaPhotos(photoData); }, 100);
                     }} style={{ marginTop: 8, padding: 8, backgroundColor: '#FCD34D', borderRadius: 6, alignItems: 'center' }}>
